@@ -45,6 +45,8 @@ android {
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
+        // Limit bundled locales to reduce APK size (change/add locales you need)
+        resConfigs "en"
     }
 
 
@@ -61,22 +63,29 @@ android {
 
     buildTypes {
         release {
+            // Do not include native debug symbols in release APK/AAB
             ndk {
-                debugSymbolLevel 'full'
+                debugSymbolLevel 'none'
             }
+
+            // Enable shrinking of Java/Kotlin code from plugins and Android resources
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
             resValue "string", "app_name", "Mindful"
             signingConfig signingConfigs.release
 
-            // If you see "SigningConfig 'release' is missing required property 'storeFile'",  
-            // it means your release keystore is not set up due to missing environment variables.  
-            // To fix this locally, either:  
-            // 1. Use `signingConfig signingConfigs.debug` (but DO NOT commit this change).  
-            // 2. Set the following environment variables to keep signing secure:  
-            //    - KEYSTORE_FILE  
-            //    - STORE_PASSWORD  
-            //    - KEY_ALIAS  
-            //    - KEY_PASSWORD  
-            // Avoid pushing any local changes to this Gradle file, as it may break CI/CD.  
+            // If you see "SigningConfig 'release' is missing required property 'storeFile'",
+            // it means your release keystore is not set up due to missing environment variables.
+            // To fix this locally, either:
+            // 1. Use `signingConfig signingConfigs.debug` (but DO NOT commit this change).
+            // 2. Set the following environment variables to keep signing secure:
+            //    - KEYSTORE_FILE
+            //    - STORE_PASSWORD
+            //    - KEY_ALIAS
+            //    - KEY_PASSWORD
+            // Avoid pushing any local changes to this Gradle file, as it may break CI/CD.
         }
 
         debug {
@@ -95,6 +104,14 @@ android {
     buildFeatures {
         viewBinding true
     }
+
+    // Exclude common META-INF files that bloat the final APK/AAB
+    packagingOptions {
+        exclude 'META-INF/LICENSE'
+        exclude 'META-INF/LICENSE.txt'
+        exclude 'META-INF/NOTICE'
+        exclude 'META-INF/*.kotlin_module'
+    }
 }
 
 flutter {
@@ -105,4 +122,3 @@ dependencies {
     implementation 'androidx.work:work-runtime:2.10.1'
     implementation 'androidx.appcompat:appcompat:1.7.1'
 }
-
