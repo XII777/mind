@@ -19,3 +19,9 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class * extends java.lang.annotation.Annotation { *; }
+
+# Flutter's deferred-components support references Play Core classes
+# that aren't used by this app (no dynamic feature delivery). Safe to
+# ignore rather than bundle the whole Play Core library.
+-dontwarn com.google.android.play.core.splitinstall.**
+-dontwarn com.google.android.play.core.tasks.**
