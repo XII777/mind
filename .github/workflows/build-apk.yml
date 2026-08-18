@@ -25,10 +25,18 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Decode keystore
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-key.jks
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build release APK
+        env:
+          KEYSTORE_FILE: release-key.jks
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: flutter build apk --release
 
       - name: Upload APK artifact
