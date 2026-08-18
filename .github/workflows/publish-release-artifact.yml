@@ -24,21 +24,30 @@ jobs:
         run: flutter pub get
 
       - name: Decode keystore (if provided)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        run: |
-          echo "Decoding keystore..."
-          mkdir -p android
-          echo "$KEYSTORE_BASE64" | base64 --decode > android/keystore.jks
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Decoding keystore..."
+            mkdir -p android
+            echo "$KEYSTORE_BASE64" | base64 --decode > android/keystore.jks
+          else
+            echo "No keystore secret provided, skipping."
+          fi
 
       - name: Export signing env vars (if keystore provided)
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore.jks" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=$STORE_PASSWORD" >> $GITHUB_ENV
+            echo "KEY_ALIAS=$KEY_ALIAS" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=$KEY_PASSWORD" >> $GITHUB_ENV
+          fi
 
       - name: Build Android App Bundle (release)
         env:
@@ -72,4 +81,3 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
