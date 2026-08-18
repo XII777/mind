@@ -1,10 +1,23 @@
 
+> [!NOTE]
+> **This is a modified fork of [Mindful](https://github.com/akaMrNagar/Mindful).**
+> All credit for the original app, its design, and architecture goes to
+> its creator, **Pawan Nagar** ([@akaMrNagar](https://github.com/akaMrNagar)) — see the
+> [original repository here](https://github.com/akaMrNagar/Mindful).
+> This fork adds and customizes features on top of that original work
+> and is not affiliated with or endorsed by the original author. Please
+> support the original project by starring it and, if you're looking
+> for the official app, downloading it from the
+> [Play Store](https://play.google.com/store/apps/details?id=com.mindful.android)
+> or [original GitHub releases](https://github.com/akamrnagar/mindful/releases/latest).
+
 <div align="center">
     <a href="https://bemindful.vercel.app/"><img alt="Icon" src="docs/assets/mindful.png" width="144px" /></a>
     <h1> <b>Mindful</b></h1>
     <a href="https://play.google.com/store/apps/details?id=com.mindful.android"><img src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" height="96" /></a>
     <a href="https://github.com/akamrnagar/mindful/releases/latest"><img src="docs/assets/github_badge.png" height="96" /></a>
 </div>
+
 
 
 **Mindful** is a free and open-source app designed to help you regain control over your digital habits, improve your focus, and boost productivity. Whether you're battling social media addiction, struggling to stay focused, or simply looking for a way to better manage your screen time, Mindful is here to assist.

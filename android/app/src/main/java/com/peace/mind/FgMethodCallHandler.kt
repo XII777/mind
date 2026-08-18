@@ -188,6 +188,23 @@ class FgMethodCallHandler(
                 result.success(true)
             }
 
+            "updateDnsWebsiteFilter" -> {
+                val args = call.arguments<Map<String, Any?>>() ?: emptyMap()
+                val enabled = args["enabled"] as? Boolean ?: false
+                val domainsJson = args["domains"] as? String ?: "[]"
+                val blockedDomains = JsonUtils.parseStringSet(domainsJson)
+
+                if (vpnServiceConn.isActive) {
+                    vpnServiceConn.service?.updateDnsWebsiteFilter(enabled, blockedDomains)
+                } else if (enabled && blockedDomains.isNotEmpty() && getAndAskVpnPermission(false)) {
+                    vpnServiceConn.setOnConnectedCallback { service ->
+                        service.updateDnsWebsiteFilter(enabled, blockedDomains)
+                    }
+                    vpnServiceConn.startAndBind()
+                }
+                result.success(true)
+            }
+
             "updateWellBeingSettings" -> {
                 // NOTE: Only updating shared prefs because accessibility service have onSharedPrefsChange listener registered which will eventually reload needed data
                 SharedPrefsHelper.getSetWellBeingSettings(
@@ -479,4 +496,8 @@ class FgMethodCallHandler(
         return intent == null
     }
 
-}
+}BIGFEAT_EOF
+echo "  wrote android/app/src/main/java/com/peace/mind/FgMethodCallHandler.kt"
+echo ""
+echo "Done. Git status:"
+git status --short

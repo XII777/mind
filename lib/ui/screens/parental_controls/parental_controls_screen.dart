@@ -26,6 +26,7 @@ import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/dialogs/time_picker_dialog.dart';
 import 'package:mindful/ui/permissions/admin_permission_tile.dart';
 import 'package:mindful/ui/screens/parental_controls/invincible_mode_settings.dart';
+import 'package:mindful/ui/screens/parental_controls/tamper_lock_duration_section.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
 class ParentalControlsScreen extends ConsumerWidget {
@@ -148,6 +149,9 @@ class ParentalControlsScreen extends ConsumerWidget {
                   },
                 ),
               ).sliver,
+
+              /// Tamper protection lock duration - separate section
+              const TamperLockDurationSection(),
 
               const SliverTabsBottomPadding(),
             ],
