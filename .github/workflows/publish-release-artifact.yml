@@ -1,0 +1,75 @@
+name: Build and publish release artifact
+
+on:
+  push:
+    # Trigger on annotated tags like v1.2.3
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore (if provided)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "Decoding keystore..."
+          mkdir -p android
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/keystore.jks
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+      - name: Export signing env vars (if keystore provided)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          echo "KEYSTORE_FILE=$GITHUB_WORKSPACE/android/keystore.jks" >> $GITHUB_ENV
+          echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Build Android App Bundle (release)
+        env:
+          # Ensure flutter uses the signing env vars if present
+          KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
+          STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+        run: |
+          flutter --version
+          flutter clean
+          flutter pub get
+          flutter build appbundle --release
+
+      - name: Create GitHub Release and upload AAB
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/app/outputs/bundle/release/app-release.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload additional artifacts (mapping/symbols) if present
+        run: |
+          set -e
+          # Upload mapping.txt if present (use gh CLI)
+          if [ -f build/app/outputs/mapping/release/mapping.txt ]; then
+            echo "mapping.txt found; uploading to release..."
+            gh release upload "${GITHUB_REF#refs/tags/}" build/app/outputs/mapping/release/mapping.txt --repo $GITHUB_REPOSITORY || true
+          else
+            echo "No mapping.txt found"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
