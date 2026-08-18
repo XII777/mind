@@ -26,6 +26,7 @@ import 'package:mindful/ui/permissions/accessibility_permission_card.dart';
 import 'package:mindful/ui/screens/websites_blocking/add_websites_fab.dart';
 import 'package:mindful/ui/screens/websites_blocking/import_hosts_tile.dart';
 import 'package:mindful/ui/screens/websites_blocking/sliver_blocked_websites_list.dart';
+import 'package:mindful/ui/screens/websites_blocking/sliver_imported_hosts_categories.dart';
 import 'package:mindful/ui/screens/websites_blocking/websites_search_field.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
@@ -95,10 +96,15 @@ class WebsitesBlockingScreen extends ConsumerWidget {
             if (haveAccessibilityPermission)
               const ImportHostsFileTile().sliver,
 
-            /// Search field to filter blocked/nsfw websites list
+            /// Search field - searches manual sites plus domains inside
+            /// any currently enabled imported category
             const WebsitesSearchField().sliver,
 
-            /// Distracting websites list
+            /// One toggle tile per imported hosts-list category
+            /// (e.g. Ads, Porn, Gambling) instead of every domain
+            const SliverImportedHostsCategories(),
+
+            /// Manually added individual websites
             const SliverBlockedWebsitesList(),
 
             const SliverTabsBottomPadding(),

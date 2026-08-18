@@ -1,6 +1,93 @@
 #!/usr/bin/env bash
 set -e
-echo "Applying hosts-import feature files..."
+echo "Applying toggleable hosts-category import feature..."
+mkdir -p "lib/core/models"
+cat > "lib/core/models/imported_hosts_list.dart" << 'HOSTS_EOF'
+/*
+ *
+ *  * Copyright (c) 2024 Mindful (https://github.com/akaMrNagar/Mindful)
+ *  * Author : Pawan Nagar (https://github.com/akaMrNagar)
+ *  *
+ *  * This source code is licensed under the GPL-2.0 license license found in the
+ *  * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+/// A single imported hosts list "category" (e.g. "Adult content",
+/// "Gambling") shown in the UI as one toggle instead of a per-domain
+/// list. Toggling [enabled] blocks/unblocks every domain in [domains]
+/// at once.
+class ImportedHostsList {
+  const ImportedHostsList({
+    required this.id,
+    required this.name,
+    required this.sourceLabel,
+    required this.domains,
+    required this.enabled,
+    required this.isNsfw,
+  });
+
+  /// Stable identifier, e.g. derived from the source URL or file name.
+  final String id;
+
+  /// Display name, e.g. "Adult content (porn)".
+  final String name;
+
+  /// Short description of where this list came from, e.g. the URL or
+  /// "Imported from device".
+  final String sourceLabel;
+
+  /// All domains belonging to this list.
+  final List<String> domains;
+
+  /// Whether this list's domains are currently being enforced/blocked.
+  final bool enabled;
+
+  /// Whether this list belongs to the NSFW category. NSFW lists are
+  /// always locked on (cannot be disabled) once imported, matching the
+  /// rest of the app's "NSFW entries are permanent" behavior.
+  final bool isNsfw;
+
+  ImportedHostsList copyWith({
+    String? id,
+    String? name,
+    String? sourceLabel,
+    List<String>? domains,
+    bool? enabled,
+    bool? isNsfw,
+  }) {
+    return ImportedHostsList(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      sourceLabel: sourceLabel ?? this.sourceLabel,
+      domains: domains ?? this.domains,
+      enabled: enabled ?? this.enabled,
+      isNsfw: isNsfw ?? this.isNsfw,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'sourceLabel': sourceLabel,
+        'domains': domains,
+        'enabled': enabled,
+        'isNsfw': isNsfw,
+      };
+
+  factory ImportedHostsList.fromJson(Map<String, dynamic> json) {
+    return ImportedHostsList(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      sourceLabel: json['sourceLabel'] as String? ?? '',
+      domains: (json['domains'] as List<dynamic>).cast<String>(),
+      enabled: json['enabled'] as bool? ?? true,
+      isNsfw: json['isNsfw'] as bool? ?? false,
+    );
+  }
+}
+HOSTS_EOF
+echo "  wrote lib/core/models/imported_hosts_list.dart"
 mkdir -p "lib/core/utils"
 cat > "lib/core/utils/hosts_file_utils.dart" << 'HOSTS_EOF'
 /*
@@ -311,6 +398,202 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final websitesSearchQueryProvider = StateProvider<String>((ref) => '');
 HOSTS_EOF
 echo "  wrote lib/providers/restrictions/websites_search_provider.dart"
+mkdir -p "lib/providers/restrictions"
+cat > "lib/providers/restrictions/imported_hosts_lists_provider.dart" << 'HOSTS_EOF'
+/*
+ *
+ *  * Copyright (c) 2024 Mindful (https://github.com/akaMrNagar/Mindful)
+ *  * Author : Pawan Nagar (https://github.com/akaMrNagar)
+ *  *
+ *  * This source code is licensed under the GPL-2.0 license license found in the
+ *  * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/core/models/imported_hosts_list.dart';
+import 'package:mindful/core/services/method_channel_service.dart';
+import 'package:mindful/providers/restrictions/wellbeing_provider.dart';
+import 'package:path_provider/path_provider.dart';
+
+/// Manages imported hosts-list "categories" (e.g. Ads, Porn, Gambling)
+/// shown in the UI as a single toggle each instead of a per-domain list.
+///
+/// This intentionally does NOT store the (potentially huge) domain
+/// lists inside the Drift database used by [wellBeingProvider] - it
+/// keeps its own lightweight JSON file so the main settings DB stays
+/// small and fast. Whenever a category is imported or toggled, this
+/// provider recomputes the full enforcement set (manually-added sites
+/// from [wellBeingProvider] plus domains from every *enabled* category)
+/// and pushes that combined set straight to the native blocking
+/// service, without persisting the expanded set back into the Drift DB.
+final importedHostsListsProvider = StateNotifierProvider<
+    ImportedHostsListsNotifier, List<ImportedHostsList>>(
+  (ref) => ImportedHostsListsNotifier(ref),
+);
+
+class ImportedHostsListsNotifier
+    extends StateNotifier<List<ImportedHostsList>> {
+  final Ref _ref;
+  bool _loaded = false;
+
+  ImportedHostsListsNotifier(this._ref) : super(const []) {
+    _init();
+  }
+
+  Future<File> _storageFile() async {
+    final dir = await getApplicationDocumentsDirectory();
+    return File('${dir.path}/imported_hosts_lists.json');
+  }
+
+  Future<void> _init() async {
+    try {
+      final file = await _storageFile();
+      if (await file.exists()) {
+        final raw = await file.readAsString();
+        final decoded = jsonDecode(raw) as List<dynamic>;
+        state = decoded
+            .map((e) => ImportedHostsList.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {
+      /// Corrupted or unreadable file — start fresh rather than crash.
+      state = const [];
+    }
+
+    _loaded = true;
+
+    /// Keep native enforcement in sync whenever the underlying manual
+    /// blocklist (from wellBeingProvider) changes too, since the
+    /// effective set is manual ∪ enabled-category domains.
+    _ref.listen(wellBeingProvider, (_, __) => _pushCombinedStateToNative());
+
+    await _persistAndSync();
+  }
+
+  Future<void> _persist() async {
+    if (!_loaded) return;
+    try {
+      final file = await _storageFile();
+      final encoded = jsonEncode(state.map((e) => e.toJson()).toList());
+      await file.writeAsString(encoded);
+    } catch (_) {
+      /// Best-effort persistence; ignore write failures (e.g. low storage).
+    }
+  }
+
+  Future<void> _persistAndSync() async {
+    await _persist();
+    await _pushCombinedStateToNative();
+  }
+
+  /// Sends the manually-added sites (from [wellBeingProvider]) combined
+  /// with every enabled category's domains to the native blocking
+  /// service, without writing the expanded set back to the Drift DB.
+  Future<void> _pushCombinedStateToNative() async {
+    final wellbeing = _ref.read(wellBeingProvider);
+
+    final enabledNonNsfwDomains = state
+        .where((l) => l.enabled && !l.isNsfw)
+        .expand((l) => l.domains);
+    final enabledNsfwDomains =
+        state.where((l) => l.enabled && l.isNsfw).expand((l) => l.domains);
+
+    final combinedBlocked = {
+      ...wellbeing.blockedWebsites,
+      ...enabledNonNsfwDomains,
+    }.toList();
+
+    final combinedNsfw = {
+      ...wellbeing.nsfwWebsites,
+      ...enabledNsfwDomains,
+    }.toList();
+
+    final combinedState = wellbeing.copyWith(
+      blockedWebsites: combinedBlocked,
+      nsfwWebsites: combinedNsfw,
+      /// If any NSFW category is enabled, force NSFW blocking on too.
+      blockNsfwSites: wellbeing.blockNsfwSites || combinedNsfw.isNotEmpty,
+    );
+
+    await MethodChannelService.instance.updateWellBeingSettings(combinedState);
+  }
+
+  /// Imports (or re-imports/updates) a category list. If a category
+  /// with the same [id] already exists, its domains and metadata are
+  /// refreshed while preserving its current enabled state.
+  ///
+  /// Returns the number of domains in the (new or refreshed) list.
+  Future<int> addOrUpdateList({
+    required String id,
+    required String name,
+    required String sourceLabel,
+    required Set<String> domains,
+    required bool isNsfw,
+  }) async {
+    final existingIndex = state.indexWhere((l) => l.id == id);
+
+    final newEntry = ImportedHostsList(
+      id: id,
+      name: name,
+      sourceLabel: sourceLabel,
+      domains: domains.toList(),
+      enabled: existingIndex == -1 ? true : state[existingIndex].enabled,
+      isNsfw: isNsfw,
+    );
+
+    if (existingIndex == -1) {
+      state = [...state, newEntry];
+    } else {
+      state = [
+        for (final l in state) l.id == id ? newEntry : l,
+      ];
+    }
+
+    await _persistAndSync();
+    return domains.length;
+  }
+
+  /// Toggles a category on/off. NSFW categories are locked and cannot
+  /// be disabled once imported.
+  Future<void> toggleList(String id) async {
+    ImportedHostsList? target;
+    for (final l in state) {
+      if (l.id == id) {
+        target = l;
+        break;
+      }
+    }
+    if (target == null || target.isNsfw) return; // locked or not found
+
+    state = [
+      for (final l in state) l.id == id ? l.copyWith(enabled: !l.enabled) : l,
+    ];
+
+    await _persistAndSync();
+  }
+
+  /// Removes a non-NSFW category entirely. NSFW categories are locked
+  /// and cannot be removed once imported.
+  Future<void> removeList(String id) async {
+    ImportedHostsList? target;
+    for (final l in state) {
+      if (l.id == id) {
+        target = l;
+        break;
+      }
+    }
+    if (target == null || target.isNsfw) return;
+
+    state = state.where((l) => l.id != id).toList();
+    await _persistAndSync();
+  }
+}
+HOSTS_EOF
+echo "  wrote lib/providers/restrictions/imported_hosts_lists_provider.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/import_hosts_tile.dart" << 'HOSTS_EOF'
 /*
@@ -333,34 +616,31 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/core/utils/hosts_file_utils.dart';
-import 'package:mindful/providers/restrictions/wellbeing_provider.dart';
+import 'package:mindful/providers/restrictions/imported_hosts_lists_provider.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
 
-/// One selectable source in the hosts-file import sheet.
+/// One selectable preset source in the hosts-file import sheet.
 class _HostsSource {
   const _HostsSource({
+    required this.id,
     required this.title,
     required this.subtitle,
     required this.icon,
     required this.isNsfw,
-    this.url,
+    required this.url,
   });
 
+  final String id;
   final String title;
   final String subtitle;
   final IconData icon;
-
-  /// If true, imported hosts are routed to the NSFW list (auto-locked,
-  /// non-removable, and switches on NSFW blocking). If false, they go
-  /// to the regular blocked-websites list.
   final bool isNsfw;
-
-  /// Remote URL to download, or null for "pick a local file" / "custom URL".
-  final String? url;
+  final String url;
 }
 
 final List<_HostsSource> _remoteSources = [
   _HostsSource(
+    id: 'stevenblack_ads_malware',
     title: 'Ads + Malware (base list)',
     subtitle: 'StevenBlack/hosts — default',
     icon: FluentIcons.shield_20_regular,
@@ -368,6 +648,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsAdsMalware,
   ),
   _HostsSource(
+    id: 'stevenblack_fakenews',
     title: 'Fake news',
     subtitle: 'Base list + fake news sites',
     icon: FluentIcons.news_20_regular,
@@ -375,6 +656,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsFakenews,
   ),
   _HostsSource(
+    id: 'stevenblack_gambling',
     title: 'Gambling',
     subtitle: 'Base list + gambling sites',
     icon: FluentIcons.money_20_regular,
@@ -382,6 +664,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsGambling,
   ),
   _HostsSource(
+    id: 'stevenblack_social',
     title: 'Social media',
     subtitle: 'Base list + social media sites',
     icon: FluentIcons.people_20_regular,
@@ -389,6 +672,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsSocial,
   ),
   _HostsSource(
+    id: 'stevenblack_porn',
     title: 'Adult content (porn)',
     subtitle: 'Base list + adult sites — locked NSFW category',
     icon: FluentIcons.eye_off_20_regular,
@@ -396,6 +680,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsPorn,
   ),
   _HostsSource(
+    id: 'stevenblack_gambling_porn',
     title: 'Gambling + Adult content',
     subtitle: 'Base list + gambling + porn — locked NSFW category',
     icon: FluentIcons.shield_error_20_regular,
@@ -403,6 +688,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsGamblingPorn,
   ),
   _HostsSource(
+    id: 'stevenblack_fakenews_gambling_porn',
     title: 'Fake news + Gambling + Adult',
     subtitle: 'Base list + fakenews + gambling + porn — locked NSFW category',
     icon: FluentIcons.shield_error_20_regular,
@@ -410,6 +696,7 @@ final List<_HostsSource> _remoteSources = [
     url: HostsFileUtils.hostsFakenewsGamblingPorn,
   ),
   _HostsSource(
+    id: 'stevenblack_everything',
     title: 'Everything',
     subtitle:
         'Base + fake news + gambling + porn + social — locked NSFW category',
@@ -419,16 +706,14 @@ final List<_HostsSource> _remoteSources = [
   ),
 ];
 
-/// A list tile which lets the user bulk-import blocked websites from a
-/// "hosts" formatted file, such as the popular unified hosts lists from
-/// https://github.com/StevenBlack/hosts
+/// A list tile which lets the user bulk-import a hosts-file category
+/// (e.g. from https://github.com/StevenBlack/hosts) as a single
+/// toggleable entry, rather than dumping every domain into the visible
+/// websites list. The user can choose a preset variant, enter a custom
+/// URL, or pick a hosts file already saved on their device.
 ///
-/// The user can choose a preset StevenBlack/hosts variant, enter a
-/// custom URL pointing to any other hosts file, or pick a hosts file
-/// already saved on their device. Any hosts imported from an
-/// adult-content source are routed into the NSFW list, which the rest
-/// of the app treats as permanently locked (non-removable) and
-/// automatically blocked.
+/// Adult-content sources are routed to the locked NSFW category, which
+/// cannot be disabled or removed once imported.
 class ImportHostsFileTile extends ConsumerStatefulWidget {
   const ImportHostsFileTile({super.key});
 
@@ -445,10 +730,10 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     return DefaultListTile(
       enabled: !_isImporting,
       leadingIcon: FluentIcons.document_arrow_down_20_regular,
-      titleText: 'Import from hosts file',
+      titleText: 'Import a hosts-file category',
       subtitleText: _isImporting
           ? 'Importing, please wait...'
-          : 'Bulk block websites using a hosts file (e.g. StevenBlack/hosts)',
+          : 'Add a toggleable blocklist category (e.g. StevenBlack/hosts)',
       trailing: _isImporting
           ? const SizedBox(
               height: 20,
@@ -480,7 +765,13 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
                   subtitleText: source.subtitle,
                   onPressed: () {
                     Navigator.of(sheetContext).pop();
-                    _importFromUrl(context, source.url!, source.isNsfw);
+                    _importFromUrl(
+                      context,
+                      id: source.id,
+                      name: source.title,
+                      url: source.url,
+                      isNsfw: source.isNsfw,
+                    );
                   },
                 ),
               DefaultListTile(
@@ -511,19 +802,34 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
   }
 
   Future<void> _promptCustomUrl(BuildContext context) async {
-    final controller = TextEditingController();
+    final urlController = TextEditingController();
+    final nameController = TextEditingController();
 
-    final url = await showDialog<String>(
+    final result = await showDialog<Map<String, String>>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Import from URL'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          keyboardType: TextInputType.url,
-          decoration: const InputDecoration(
-            hintText: 'https://example.com/hosts.txt',
-          ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: 'Category name',
+                hintText: 'e.g. My custom list',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: urlController,
+              autofocus: true,
+              keyboardType: TextInputType.url,
+              decoration: const InputDecoration(
+                labelText: 'Hosts file URL',
+                hintText: 'https://example.com/hosts.txt',
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -531,16 +837,22 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(dialogContext).pop(
-              controller.text.trim(),
-            ),
+            onPressed: () => Navigator.of(dialogContext).pop({
+              'url': urlController.text.trim(),
+              'name': nameController.text.trim(),
+            }),
             child: const Text('Next'),
           ),
         ],
       ),
     );
 
-    if (url == null || url.isEmpty) return;
+    if (result == null) return;
+    final url = result['url'] ?? '';
+    final name = (result['name'] ?? '').isEmpty
+        ? 'Custom list'
+        : result['name']!;
+
     if (!(url.startsWith('http://') || url.startsWith('https://'))) {
       if (mounted) {
         context.showSnackAlert('Please enter a valid http(s) URL');
@@ -553,14 +865,22 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     if (isNsfw == null) return;
 
     if (!mounted) return;
-    await _importFromUrl(context, url, isNsfw);
+    await _importFromUrl(
+      context,
+      id: 'custom_${url.hashCode}',
+      name: name,
+      url: url,
+      isNsfw: isNsfw,
+    );
   }
 
   Future<void> _importFromUrl(
-    BuildContext context,
-    String url,
-    bool isNsfw,
-  ) async {
+    BuildContext context, {
+    required String id,
+    required String name,
+    required String url,
+    required bool isNsfw,
+  }) async {
     setState(() => _isImporting = true);
     try {
       final response = await http
@@ -573,7 +893,14 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
         );
       }
 
-      _applyParsedHosts(context, response.body, isNsfw: isNsfw);
+      await _applyParsedHosts(
+        context,
+        response.body,
+        id: id,
+        name: name,
+        sourceLabel: url,
+        isNsfw: isNsfw,
+      );
     } catch (e) {
       if (mounted) {
         context.showSnackAlert('Could not download hosts file: $e');
@@ -585,10 +912,6 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
 
   Future<void> _importFromLocalFile(BuildContext context) async {
     try {
-      /// FileType.any keeps this working for hosts files saved with no
-      /// extension at all, or with .txt/.host/.hosts extensions - all of
-      /// which are plain text under the hood regardless of what the OS
-      /// reports as their MIME type.
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
         withData: true,
@@ -598,8 +921,6 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
 
       final pickedFile = result.files.first;
 
-      /// Prefer in-memory bytes when available (works reliably across
-      /// Android SAF / content:// URIs), fall back to reading by path.
       String content;
       if (pickedFile.bytes != null) {
         content = utf8.decode(pickedFile.bytes!, allowMalformed: true);
@@ -618,10 +939,17 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
 
       if (!mounted) return;
       final isNsfw = await _askIfAdultList(context);
-      if (isNsfw == null) return; // user dismissed the prompt
+      if (isNsfw == null) return;
 
       setState(() => _isImporting = true);
-      _applyParsedHosts(context, content, isNsfw: isNsfw);
+      await _applyParsedHosts(
+        context,
+        content,
+        id: 'local_${pickedFile.name.hashCode}',
+        name: pickedFile.name,
+        sourceLabel: 'Imported from device',
+        isNsfw: isNsfw,
+      );
     } catch (e) {
       if (mounted) {
         context.showSnackAlert('Could not read the selected file: $e');
@@ -631,9 +959,6 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     }
   }
 
-  /// Asks the user whether the picked/URL file is an adult-content
-  /// list, so it can be routed to the locked NSFW category. Returns
-  /// null if the user dismissed the dialog without choosing.
   Future<bool?> _askIfAdultList(BuildContext context) {
     return showDialog<bool>(
       context: context,
@@ -641,13 +966,14 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
         title: const Text('What kind of list is this?'),
         content: const Text(
           'If this file contains adult/NSFW website domains, it will be '
-          'added to the locked NSFW category and cannot be edited later. '
-          'Otherwise it will be added to your regular blocked list.',
+          'added to the locked NSFW category and cannot be disabled or '
+          'removed later. Otherwise it will be added as a regular '
+          'toggleable category.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Regular blocklist'),
+            child: const Text('Regular category'),
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -658,11 +984,14 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     );
   }
 
-  void _applyParsedHosts(
+  Future<void> _applyParsedHosts(
     BuildContext context,
     String content, {
+    required String id,
+    required String name,
+    required String sourceLabel,
     required bool isNsfw,
-  }) {
+  }) async {
     final domains = HostsFileUtils.parseHostsContent(content);
 
     if (domains.isEmpty) {
@@ -675,18 +1004,18 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
       return;
     }
 
-    final notifier = ref.read(wellBeingProvider.notifier);
-    final addedCount = isNsfw
-        ? notifier.importNsfwSites(domains)
-        : notifier.importBlockedSites(domains);
+    final count = await ref.read(importedHostsListsProvider.notifier).addOrUpdateList(
+          id: id,
+          name: name,
+          sourceLabel: sourceLabel,
+          domains: domains,
+          isNsfw: isNsfw,
+        );
 
     if (mounted) {
       context.showSnackAlert(
-        addedCount > 0
-            ? 'Blocked $addedCount new website${addedCount == 1 ? '' : 's'} '
-                '${isNsfw ? '(locked NSFW category) ' : ''}'
-                'from the imported hosts file'
-            : 'All websites from the file are already blocked',
+        'Added "$name" with $count website${count == 1 ? '' : 's'} '
+        '${isNsfw ? '(locked NSFW category)' : ''}',
       );
     }
   }
@@ -792,6 +1121,109 @@ class SliverBlockedWebsitesList extends ConsumerWidget {
 HOSTS_EOF
 echo "  wrote lib/ui/screens/websites_blocking/sliver_blocked_websites_list.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
+cat > "lib/ui/screens/websites_blocking/sliver_imported_hosts_categories.dart" << 'HOSTS_EOF'
+/*
+ *
+ *  * Copyright (c) 2024 Mindful (https://github.com/akaMrNagar/Mindful)
+ *  * Author : Pawan Nagar (https://github.com/akaMrNagar)
+ *  *
+ *  * This source code is licensed under the GPL-2.0 license license found in the
+ *  * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/providers/restrictions/imported_hosts_lists_provider.dart';
+import 'package:mindful/providers/restrictions/websites_search_provider.dart';
+import 'package:mindful/ui/common/default_list_tile.dart';
+
+/// Shows one toggle tile per imported hosts-list category (e.g. Ads,
+/// Porn, Gambling) instead of every individual domain. NSFW categories
+/// show a lock icon and cannot be toggled off or removed.
+///
+/// When a search query is active, categories are filtered to those
+/// whose name matches, OR - for currently enabled categories - whose
+/// domain list contains a match, in which case up to a few matching
+/// domains are shown in the subtitle so the user can confirm a
+/// specific site is covered.
+class SliverImportedHostsCategories extends ConsumerWidget {
+  const SliverImportedHostsCategories({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(importedHostsListsProvider);
+    final searchQuery = ref.watch(websitesSearchQueryProvider);
+
+    if (categories.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox());
+    }
+
+    final List<Widget> tiles = [];
+
+    for (final category in categories) {
+      String subtitle = '${category.domains.length} websites'
+          '${category.isNsfw ? ' • Locked NSFW category' : ''}';
+      bool matches = searchQuery.isEmpty;
+
+      if (searchQuery.isNotEmpty) {
+        final nameMatches = category.name.toLowerCase().contains(searchQuery);
+
+        if (nameMatches) {
+          matches = true;
+        } else if (category.enabled) {
+          /// Only search inside domains of currently enabled categories,
+          /// per requirement that search covers what's actively blocked.
+          final allMatchingDomains =
+              category.domains.where((d) => d.contains(searchQuery)).toList();
+
+          if (allMatchingDomains.isNotEmpty) {
+            matches = true;
+            final shown = allMatchingDomains.take(4).toList();
+            final moreCount = allMatchingDomains.length - shown.length;
+            subtitle = 'Matches: ${shown.join(', ')}'
+                '${moreCount > 0 ? ' +$moreCount more' : ''}';
+          }
+        }
+      }
+
+      if (!matches) continue;
+
+      tiles.add(
+        DefaultListTile(
+          leadingIcon: category.isNsfw
+              ? FluentIcons.lock_closed_20_filled
+              : FluentIcons.list_20_regular,
+          titleText: category.name,
+          subtitleText: subtitle,
+          trailing: category.isNsfw
+              ? const Icon(FluentIcons.lock_closed_20_filled, size: 18)
+              : Switch(
+                  value: category.enabled,
+                  onChanged: (_) => ref
+                      .read(importedHostsListsProvider.notifier)
+                      .toggleList(category.id),
+                ),
+          onPressed: category.isNsfw
+              ? null
+              : () => ref
+                  .read(importedHostsListsProvider.notifier)
+                  .toggleList(category.id),
+        ),
+      );
+    }
+
+    if (tiles.isEmpty) {
+      return const SliverToBoxAdapter(child: SizedBox());
+    }
+
+    return SliverList(delegate: SliverChildListDelegate(tiles));
+  }
+}
+HOSTS_EOF
+echo "  wrote lib/ui/screens/websites_blocking/sliver_imported_hosts_categories.dart"
+mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/websites_blocking_screen.dart" << 'HOSTS_EOF'
 /*
  *
@@ -821,6 +1253,7 @@ import 'package:mindful/ui/permissions/accessibility_permission_card.dart';
 import 'package:mindful/ui/screens/websites_blocking/add_websites_fab.dart';
 import 'package:mindful/ui/screens/websites_blocking/import_hosts_tile.dart';
 import 'package:mindful/ui/screens/websites_blocking/sliver_blocked_websites_list.dart';
+import 'package:mindful/ui/screens/websites_blocking/sliver_imported_hosts_categories.dart';
 import 'package:mindful/ui/screens/websites_blocking/websites_search_field.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
@@ -890,10 +1323,15 @@ class WebsitesBlockingScreen extends ConsumerWidget {
             if (haveAccessibilityPermission)
               const ImportHostsFileTile().sliver,
 
-            /// Search field to filter blocked/nsfw websites list
+            /// Search field - searches manual sites plus domains inside
+            /// any currently enabled imported category
             const WebsitesSearchField().sliver,
 
-            /// Distracting websites list
+            /// One toggle tile per imported hosts-list category
+            /// (e.g. Ads, Porn, Gambling) instead of every domain
+            const SliverImportedHostsCategories(),
+
+            /// Manually added individual websites
             const SliverBlockedWebsitesList(),
 
             const SliverTabsBottomPadding(),
@@ -906,8 +1344,5 @@ class WebsitesBlockingScreen extends ConsumerWidget {
 HOSTS_EOF
 echo "  wrote lib/ui/screens/websites_blocking/websites_blocking_screen.dart"
 echo ""
-echo "Done. Verifying files exist:"
-ls -la lib/ui/screens/websites_blocking/import_hosts_tile.dart lib/ui/screens/websites_blocking/websites_search_field.dart lib/providers/restrictions/websites_search_provider.dart
-echo ""
-echo "Git status (you should see these files as modified/new):"
+echo "Done. Git status (you should see these files as modified/new):"
 git status --short
