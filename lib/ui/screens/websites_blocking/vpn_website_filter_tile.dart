@@ -38,7 +38,7 @@ class VpnWebsiteFilterTile extends ConsumerWidget {
               'since only one VPN can run at a time.',
       onPressed: () async {
         final confirm = isEnabled ||
-            await showDialog<bool>(
+            (await showDialog<bool>(
               context: context,
               builder: (dialogContext) => AlertDialog(
                 title: const Text('Enable VPN website filter?'),
@@ -62,7 +62,7 @@ class VpnWebsiteFilterTile extends ConsumerWidget {
                 ],
               ),
             ) ??
-            false;
+            false);
 
         if (!confirm) return;
         await ref.read(vpnWebsiteFilterProvider.notifier).setEnabled(!isEnabled);
