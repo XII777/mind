@@ -496,8 +496,4 @@ class FgMethodCallHandler(
         return intent == null
     }
 
-}BIGFEAT_EOF
-echo "  wrote android/app/src/main/java/com/peace/mind/FgMethodCallHandler.kt"
-echo ""
-echo "Done. Git status:"
-git status --short
+}
