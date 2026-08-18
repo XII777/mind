@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -e
-# Run this from the root of your Mindful project folder (where pubspec.yaml lives)
+echo "Applying hosts-import feature files..."
 mkdir -p "lib/core/utils"
 cat > "lib/core/utils/hosts_file_utils.dart" << 'HOSTS_EOF'
 /*
@@ -14,60 +14,120 @@ cat > "lib/core/utils/hosts_file_utils.dart" << 'HOSTS_EOF'
  */
 
 /// Utilities to fetch and parse "hosts" formatted files such as the
-/// popular StevenBlack unified hosts list
+/// popular StevenBlack unified hosts lists
 /// (https://github.com/StevenBlack/hosts) into a plain list of domains
 /// that Mindful's website blocker can consume.
 class HostsFileUtils {
   HostsFileUtils._();
 
-  /// Default raw URL of the StevenBlack/hosts unified hosts file
-  /// (ads + malware + fakenews, no adult content).
-  static const String stevenBlackHostsUrl =
-      'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts';
+  static const String _base =
+      'https://raw.githubusercontent.com/StevenBlack/hosts/master';
 
-  /// Raw URL of the StevenBlack/hosts "porn" variant — adult content
-  /// combined with the base ads/malware/fakenews lists.
-  static const String stevenBlackPornUrl =
-      'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts';
+  /// Base list: ads + malware (no fakenews/gambling/porn/social).
+  static const String hostsAdsMalware = '$_base/hosts';
 
-  /// Raw URL of the StevenBlack/hosts "porn-only" variant — adult
-  /// content domains only, without the base ads/malware lists.
-  static const String stevenBlackPornOnlyUrl =
-      'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts';
+  /// Individual "alternates" variants, each = base (ads + malware) PLUS
+  /// the named category.
+  static const String hostsFakenews = '$_base/alternates/fakenews/hosts';
+  static const String hostsGambling = '$_base/alternates/gambling/hosts';
+  static const String hostsPorn = '$_base/alternates/porn/hosts';
+  static const String hostsSocial = '$_base/alternates/social/hosts';
+
+  /// Combined variants (base + two or more categories).
+  static const String hostsFakenewsGambling =
+      '$_base/alternates/fakenews-gambling/hosts';
+  static const String hostsFakenewsPorn =
+      '$_base/alternates/fakenews-porn/hosts';
+  static const String hostsFakenewsSocial =
+      '$_base/alternates/fakenews-social/hosts';
+  static const String hostsGamblingPorn =
+      '$_base/alternates/gambling-porn/hosts';
+  static const String hostsGamblingSocial =
+      '$_base/alternates/gambling-social/hosts';
+  static const String hostsPornSocial =
+      '$_base/alternates/porn-social/hosts';
+  static const String hostsFakenewsGamblingPorn =
+      '$_base/alternates/fakenews-gambling-porn/hosts';
+  static const String hostsFakenewsGamblingSocial =
+      '$_base/alternates/fakenews-gambling-social/hosts';
+  static const String hostsFakenewsPornSocial =
+      '$_base/alternates/fakenews-porn-social/hosts';
+  static const String hostsGamblingPornSocial =
+      '$_base/alternates/gambling-porn-social/hosts';
+
+  /// Everything: base + fakenews + gambling + porn + social.
+  static const String hostsEverything =
+      '$_base/alternates/fakenews-gambling-porn-social/hosts';
+
+  /// Kept for backwards compatibility with earlier versions of this file.
+  static const String stevenBlackHostsUrl = hostsAdsMalware;
+  static const String stevenBlackPornUrl = hostsPorn;
+  static const String stevenBlackPornOnlyUrl = hostsPorn;
 
   /// Parses the raw content of a hosts file and returns the set of unique,
   /// valid domains found within it.
   ///
-  /// A typical hosts file line looks like:
+  /// Handles both standard hosts-file syntax:
   /// ```
   /// 0.0.0.0 ads.example.com
   /// 127.0.0.1 tracker.example.com # comment
   /// ```
+  /// and plain domain-per-line lists (no leading IP), which some
+  /// blocklists / exports use:
+  /// ```
+  /// ads.example.com
+  /// tracker.example.com
+  /// ```
   /// Lines starting with `#`, blank lines, and reserved/loopback-only
-  /// entries (e.g. `0.0.0.0 0.0.0.0`, `localhost`) are ignored.
+  /// entries (e.g. `0.0.0.0 0.0.0.0`, `localhost`) are ignored. Handles
+  /// UTF-8 BOM and both `\n` and `\r\n` line endings.
   static Set<String> parseHostsContent(String content) {
     final Set<String> domains = {};
 
-    for (final rawLine in content.split('\n')) {
+    /// Strip a UTF-8 byte-order-mark if present (common when files are
+    /// saved/downloaded on Windows) and normalize CRLF to LF.
+    final normalized = content
+        .replaceFirst('\uFEFF', '')
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n');
+
+    for (final rawLine in normalized.split('\n')) {
       final line = rawLine.trim();
 
       /// Skip empty lines and comments
-      if (line.isEmpty || line.startsWith('#')) continue;
+      if (line.isEmpty || line.startsWith('#') || line.startsWith('!')) {
+        continue;
+      }
 
       /// Strip inline comments
       final withoutComment = line.split('#').first.trim();
       if (withoutComment.isEmpty) continue;
 
-      /// Split on whitespace, expected format: "<ip> <host> [aliases...]"
+      /// Split on whitespace. Two supported shapes:
+      /// 1. "<ip> <host> [aliases...]" (standard hosts file)
+      /// 2. "<host>" (plain domain list, one per line)
       final parts = withoutComment.split(RegExp(r'\s+'));
-      if (parts.length < 2) continue;
 
-      /// Everything after the IP is a hostname/alias on that line
-      for (final host in parts.sublist(1)) {
-        final normalized = host.trim().toLowerCase();
+      if (parts.length == 1) {
+        /// Plain domain-only line
+        final normalizedHost = parts.first.trim().toLowerCase();
+        if (_isValidBlockableHost(normalizedHost)) {
+          domains.add(normalizedHost);
+        }
+        continue;
+      }
 
-        if (_isValidBlockableHost(normalized)) {
-          domains.add(normalized);
+      /// First token looks like an IP (has dots/colons and no letters
+      /// other than hex in the ipv6 case) -> treat as "<ip> <hosts...>"
+      /// Otherwise, be lenient and just treat every token as a host,
+      /// since some lists prefix with junk we don't recognize.
+      final looksLikeIp = RegExp(r'^[0-9a-fA-F:.]+$').hasMatch(parts.first);
+      final hostTokens = looksLikeIp ? parts.sublist(1) : parts;
+
+      for (final host in hostTokens) {
+        final normalizedHost = host.trim().toLowerCase();
+        if (_isValidBlockableHost(normalizedHost)) {
+          domains.add(normalizedHost);
         }
       }
     }
@@ -102,6 +162,7 @@ class HostsFileUtils {
   }
 }
 HOSTS_EOF
+echo "  wrote lib/core/utils/hosts_file_utils.dart"
 mkdir -p "lib/providers/restrictions"
 cat > "lib/providers/restrictions/wellbeing_provider.dart" << 'HOSTS_EOF'
 /*
@@ -230,6 +291,7 @@ class WellBeingNotifier extends StateNotifier<Wellbeing> {
       state = state.copyWith(allowedShortsTimeSec: timeSec > 0 ? timeSec : -1);
 }
 HOSTS_EOF
+echo "  wrote lib/providers/restrictions/wellbeing_provider.dart"
 mkdir -p "lib/providers/restrictions"
 cat > "lib/providers/restrictions/websites_search_provider.dart" << 'HOSTS_EOF'
 /*
@@ -248,6 +310,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// blocked/NSFW websites list on the websites blocking screen.
 final websitesSearchQueryProvider = StateProvider<String>((ref) => '');
 HOSTS_EOF
+echo "  wrote lib/providers/restrictions/websites_search_provider.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/import_hosts_tile.dart" << 'HOSTS_EOF'
 /*
@@ -260,6 +323,7 @@ cat > "lib/ui/screens/websites_blocking/import_hosts_tile.dart" << 'HOSTS_EOF'
  *
  */
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -291,31 +355,67 @@ class _HostsSource {
   /// to the regular blocked-websites list.
   final bool isNsfw;
 
-  /// Remote URL to download, or null for "pick a local file".
+  /// Remote URL to download, or null for "pick a local file" / "custom URL".
   final String? url;
 }
 
-const List<_HostsSource> _remoteSources = [
+final List<_HostsSource> _remoteSources = [
   _HostsSource(
-    title: 'Full list (ads, malware, fake news)',
-    subtitle: 'StevenBlack/hosts — general blocklist',
+    title: 'Ads + Malware (base list)',
+    subtitle: 'StevenBlack/hosts — default',
     icon: FluentIcons.shield_20_regular,
     isNsfw: false,
-    url: HostsFileUtils.stevenBlackHostsUrl,
+    url: HostsFileUtils.hostsAdsMalware,
   ),
   _HostsSource(
-    title: 'Full list + adult content',
-    subtitle: 'StevenBlack/hosts — "porn" variant',
-    icon: FluentIcons.shield_error_20_regular,
-    isNsfw: true,
-    url: HostsFileUtils.stevenBlackPornUrl,
+    title: 'Fake news',
+    subtitle: 'Base list + fake news sites',
+    icon: FluentIcons.news_20_regular,
+    isNsfw: false,
+    url: HostsFileUtils.hostsFakenews,
   ),
   _HostsSource(
-    title: 'Adult content only',
-    subtitle: 'StevenBlack/hosts — "porn-only" variant',
+    title: 'Gambling',
+    subtitle: 'Base list + gambling sites',
+    icon: FluentIcons.money_20_regular,
+    isNsfw: false,
+    url: HostsFileUtils.hostsGambling,
+  ),
+  _HostsSource(
+    title: 'Social media',
+    subtitle: 'Base list + social media sites',
+    icon: FluentIcons.people_20_regular,
+    isNsfw: false,
+    url: HostsFileUtils.hostsSocial,
+  ),
+  _HostsSource(
+    title: 'Adult content (porn)',
+    subtitle: 'Base list + adult sites — locked NSFW category',
     icon: FluentIcons.eye_off_20_regular,
     isNsfw: true,
-    url: HostsFileUtils.stevenBlackPornOnlyUrl,
+    url: HostsFileUtils.hostsPorn,
+  ),
+  _HostsSource(
+    title: 'Gambling + Adult content',
+    subtitle: 'Base list + gambling + porn — locked NSFW category',
+    icon: FluentIcons.shield_error_20_regular,
+    isNsfw: true,
+    url: HostsFileUtils.hostsGamblingPorn,
+  ),
+  _HostsSource(
+    title: 'Fake news + Gambling + Adult',
+    subtitle: 'Base list + fakenews + gambling + porn — locked NSFW category',
+    icon: FluentIcons.shield_error_20_regular,
+    isNsfw: true,
+    url: HostsFileUtils.hostsFakenewsGamblingPorn,
+  ),
+  _HostsSource(
+    title: 'Everything',
+    subtitle:
+        'Base + fake news + gambling + porn + social — locked NSFW category',
+    icon: FluentIcons.shield_lock_20_regular,
+    isNsfw: true,
+    url: HostsFileUtils.hostsEverything,
   ),
 ];
 
@@ -323,11 +423,12 @@ const List<_HostsSource> _remoteSources = [
 /// "hosts" formatted file, such as the popular unified hosts lists from
 /// https://github.com/StevenBlack/hosts
 ///
-/// The user can choose between the general list, the adult-content
-/// ("porn") variants, or a hosts file already saved on their device.
-/// Any hosts imported from an adult-content source are routed into the
-/// NSFW list, which the rest of the app treats as permanently locked
-/// (non-removable) and automatically blocked.
+/// The user can choose a preset StevenBlack/hosts variant, enter a
+/// custom URL pointing to any other hosts file, or pick a hosts file
+/// already saved on their device. Any hosts imported from an
+/// adult-content source are routed into the NSFW list, which the rest
+/// of the app treats as permanently locked (non-removable) and
+/// automatically blocked.
 class ImportHostsFileTile extends ConsumerStatefulWidget {
   const ImportHostsFileTile({super.key});
 
@@ -363,45 +464,107 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final source in _remoteSources)
+      isScrollControlled: true,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => SafeArea(
+          child: ListView(
+            controller: scrollController,
+            children: [
+              for (final source in _remoteSources)
+                DefaultListTile(
+                  leadingIcon: source.icon,
+                  titleText: source.title,
+                  subtitleText: source.subtitle,
+                  onPressed: () {
+                    Navigator.of(sheetContext).pop();
+                    _importFromUrl(context, source.url!, source.isNsfw);
+                  },
+                ),
               DefaultListTile(
-                leadingIcon: source.icon,
-                titleText: source.title,
-                subtitleText: source.subtitle,
+                leadingIcon: FluentIcons.link_20_regular,
+                titleText: 'Add from a custom URL',
+                subtitleText: 'Enter any hosts-file link to import',
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
-                  _importFromUrl(context, source);
+                  _promptCustomUrl(context);
                 },
               ),
-            DefaultListTile(
-              leadingIcon: FluentIcons.document_search_20_regular,
-              titleText: 'Select a hosts file from device',
-              subtitleText:
-                  'Choose a .txt or hosts file already saved on this device',
-              onPressed: () {
-                Navigator.of(sheetContext).pop();
-                _importFromLocalFile(context);
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
+              DefaultListTile(
+                leadingIcon: FluentIcons.document_search_20_regular,
+                titleText: 'Select a hosts file from device',
+                subtitleText:
+                    'Choose a .txt or hosts file already saved on this device',
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  _importFromLocalFile(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
         ),
       ),
     );
   }
 
+  Future<void> _promptCustomUrl(BuildContext context) async {
+    final controller = TextEditingController();
+
+    final url = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Import from URL'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            hintText: 'https://example.com/hosts.txt',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(
+              controller.text.trim(),
+            ),
+            child: const Text('Next'),
+          ),
+        ],
+      ),
+    );
+
+    if (url == null || url.isEmpty) return;
+    if (!(url.startsWith('http://') || url.startsWith('https://'))) {
+      if (mounted) {
+        context.showSnackAlert('Please enter a valid http(s) URL');
+      }
+      return;
+    }
+
+    if (!mounted) return;
+    final isNsfw = await _askIfAdultList(context);
+    if (isNsfw == null) return;
+
+    if (!mounted) return;
+    await _importFromUrl(context, url, isNsfw);
+  }
+
   Future<void> _importFromUrl(
     BuildContext context,
-    _HostsSource source,
+    String url,
+    bool isNsfw,
   ) async {
     setState(() => _isImporting = true);
     try {
       final response = await http
-          .get(Uri.parse(source.url!))
+          .get(Uri.parse(url))
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
@@ -410,7 +573,7 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
         );
       }
 
-      _applyParsedHosts(context, response.body, isNsfw: source.isNsfw);
+      _applyParsedHosts(context, response.body, isNsfw: isNsfw);
     } catch (e) {
       if (mounted) {
         context.showSnackAlert('Could not download hosts file: $e');
@@ -428,26 +591,36 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
       /// reports as their MIME type.
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
+        withData: true,
       );
 
       if (result == null || result.files.isEmpty) return;
 
-      final path = result.files.first.xFile.path;
-      if (path.isEmpty) return;
+      final pickedFile = result.files.first;
 
-      final file = File(path);
-      if (!await file.exists()) {
-        throw Exception('Selected file could not be found');
+      /// Prefer in-memory bytes when available (works reliably across
+      /// Android SAF / content:// URIs), fall back to reading by path.
+      String content;
+      if (pickedFile.bytes != null) {
+        content = utf8.decode(pickedFile.bytes!, allowMalformed: true);
+      } else {
+        final path = pickedFile.xFile.path;
+        if (path.isEmpty) {
+          throw Exception('Selected file has no readable path');
+        }
+        final file = File(path);
+        if (!await file.exists()) {
+          throw Exception('Selected file could not be found');
+        }
+        final bytes = await file.readAsBytes();
+        content = utf8.decode(bytes, allowMalformed: true);
       }
-
-      setState(() => _isImporting = true);
-
-      final content = await file.readAsString();
 
       if (!mounted) return;
       final isNsfw = await _askIfAdultList(context);
       if (isNsfw == null) return; // user dismissed the prompt
 
+      setState(() => _isImporting = true);
       _applyParsedHosts(context, content, isNsfw: isNsfw);
     } catch (e) {
       if (mounted) {
@@ -458,7 +631,7 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     }
   }
 
-  /// Asks the user whether the locally picked file is an adult-content
+  /// Asks the user whether the picked/URL file is an adult-content
   /// list, so it can be routed to the locked NSFW category. Returns
   /// null if the user dismissed the dialog without choosing.
   Future<bool?> _askIfAdultList(BuildContext context) {
@@ -495,7 +668,8 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     if (domains.isEmpty) {
       if (mounted) {
         context.showSnackAlert(
-          'No valid host entries were found in the file',
+          'No valid host entries were found in the file '
+          '(${content.length} characters read)',
         );
       }
       return;
@@ -518,6 +692,7 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
   }
 }
 HOSTS_EOF
+echo "  wrote lib/ui/screens/websites_blocking/import_hosts_tile.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/websites_search_field.dart" << 'HOSTS_EOF'
 /*
@@ -554,6 +729,7 @@ class WebsitesSearchField extends ConsumerWidget {
   }
 }
 HOSTS_EOF
+echo "  wrote lib/ui/screens/websites_blocking/websites_search_field.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/sliver_blocked_websites_list.dart" << 'HOSTS_EOF'
 /*
@@ -614,6 +790,7 @@ class SliverBlockedWebsitesList extends ConsumerWidget {
   }
 }
 HOSTS_EOF
+echo "  wrote lib/ui/screens/websites_blocking/sliver_blocked_websites_list.dart"
 mkdir -p "lib/ui/screens/websites_blocking"
 cat > "lib/ui/screens/websites_blocking/websites_blocking_screen.dart" << 'HOSTS_EOF'
 /*
@@ -727,4 +904,10 @@ class WebsitesBlockingScreen extends ConsumerWidget {
   }
 }
 HOSTS_EOF
-echo "All files written."
+echo "  wrote lib/ui/screens/websites_blocking/websites_blocking_screen.dart"
+echo ""
+echo "Done. Verifying files exist:"
+ls -la lib/ui/screens/websites_blocking/import_hosts_tile.dart lib/ui/screens/websites_blocking/websites_search_field.dart lib/providers/restrictions/websites_search_provider.dart
+echo ""
+echo "Git status (you should see these files as modified/new):"
+git status --short
