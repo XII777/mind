@@ -18,14 +18,24 @@ import 'package:mindful/core/enums/item_position.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/providers/system/parental_controls_provider.dart';
 import 'package:mindful/providers/system/permissions_provider.dart';
+import 'package:mindful/providers/system/tamper_lock_provider.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
 import 'package:mindful/ui/dialogs/confirmation_dialog.dart';
+import 'package:mindful/ui/dialogs/tamper_lock_duration_dialog.dart';
 import 'package:mindful/ui/permissions/accessibility_permission_card.dart';
 import 'package:mindful/ui/permissions/permission_sheet.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
-class AdminPermissionTile extends ConsumerWidget {
+class AdminPermissionTile extends ConsumerStatefulWidget {
   const AdminPermissionTile({super.key});
+
+  @override
+  ConsumerState<AdminPermissionTile> createState() =>
+      _AdminPermissionTileState();
+}
+
+class _AdminPermissionTileState extends ConsumerState<AdminPermissionTile> {
+  bool _wasAdminEnabled = false;
 
   void _toggleTamperProtection(
     BuildContext context,
@@ -41,11 +51,25 @@ class AdminPermissionTile extends ConsumerWidget {
     }
 
     if (isAdminEnabled) {
-      /// User wants to Disable
+      /// User wants to Disable — blocked entirely while the tamper lock
+      /// window is still active, regardless of the daily uninstall
+      /// window, since the lock is meant to override it.
+      final tamperLock = ref.read(tamperLockProvider);
+      if (tamperLock.isLocked) {
+        final endsAt = tamperLock.lockEndsAt!;
+        context.showSnackAlert(
+          'Tamper protection is locked until '
+          '${endsAt.day}/${endsAt.month}/${endsAt.year} and cannot be '
+          'disabled until then.',
+        );
+        return;
+      }
+
       if (ref
           .read(parentalControlsProvider.notifier)
           .isBetweenUninstallWindow) {
         ref.read(permissionProvider.notifier).disableAdminPermission();
+        await ref.read(tamperLockProvider.notifier).clearLock();
       } else {
         context.showSnackAlert(
           context.locale.permission_admin_snack_alert,
@@ -82,8 +106,27 @@ class AdminPermissionTile extends ConsumerWidget {
     }
   }
 
+  Future<void> _editLockDuration(BuildContext context) async {
+    final tamperLock = ref.read(tamperLockProvider);
+
+    if (tamperLock.isLocked) {
+      context.showSnackAlert(
+        'Lock duration cannot be changed while a lock is active.',
+      );
+      return;
+    }
+
+    final days = await showTamperLockDurationDialog(
+      context: context,
+      initialDays: tamperLock.lockDurationDays,
+    );
+
+    if (days == null) return;
+    await ref.read(tamperLockProvider.notifier).setLockDurationDays(days);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final haveAdminPermission =
         ref.watch(permissionProvider.select((v) => v.haveAdminPermission));
     final haveAccessibilityPermission = ref
@@ -92,6 +135,23 @@ class AdminPermissionTile extends ConsumerWidget {
     final uninstallWindowTime = ref
         .watch(parentalControlsProvider.select((v) => v.uninstallWindowTime));
 
+    final tamperLock = ref.watch(tamperLockProvider);
+
+    /// Start the lock countdown the moment admin permission transitions
+    /// from off -> on (i.e. the user just granted it).
+    if (haveAdminPermission && !_wasAdminEnabled) {
+      Future.microtask(
+        () => ref.read(tamperLockProvider.notifier).startLock(),
+      );
+    }
+    _wasAdminEnabled = haveAdminPermission;
+
+    final subtitle = tamperLock.isLocked
+        ? 'Locked until ${tamperLock.lockEndsAt!.day}/'
+            '${tamperLock.lockEndsAt!.month}/${tamperLock.lockEndsAt!.year} '
+            '• Tap the days badge to change duration'
+        : context.locale.tamper_protection_tile_subtitle;
+
     return DefaultHero(
       tag: HeroTags.tamperProtectionTileTag,
       child: DefaultListTile(
@@ -99,7 +159,45 @@ class AdminPermissionTile extends ConsumerWidget {
         switchValue: haveAdminPermission && haveAccessibilityPermission,
         leadingIcon: FluentIcons.shield_keyhole_20_regular,
         titleText: context.locale.tamper_protection_tile_title,
-        subtitleText: context.locale.tamper_protection_tile_subtitle,
+        subtitleText: subtitle,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _editLockDuration(context),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 4,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      tamperLock.isLocked
+                          ? FluentIcons.lock_closed_20_filled
+                          : FluentIcons.calendar_edit_20_regular,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text('${tamperLock.lockDurationDays}d'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Switch(
+              value: haveAdminPermission && haveAccessibilityPermission,
+              onChanged: (_) => _toggleTamperProtection(
+                context,
+                ref,
+                haveAdminPermission,
+                uninstallWindowTime,
+              ),
+            ),
+          ],
+        ),
         onPressed: () => _toggleTamperProtection(
           context,
           ref,
