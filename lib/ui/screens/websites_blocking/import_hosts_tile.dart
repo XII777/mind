@@ -20,13 +20,62 @@ import 'package:mindful/core/utils/hosts_file_utils.dart';
 import 'package:mindful/providers/restrictions/wellbeing_provider.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
 
+/// One selectable source in the hosts-file import sheet.
+class _HostsSource {
+  const _HostsSource({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.isNsfw,
+    this.url,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+
+  /// If true, imported hosts are routed to the NSFW list (auto-locked,
+  /// non-removable, and switches on NSFW blocking). If false, they go
+  /// to the regular blocked-websites list.
+  final bool isNsfw;
+
+  /// Remote URL to download, or null for "pick a local file".
+  final String? url;
+}
+
+const List<_HostsSource> _remoteSources = [
+  _HostsSource(
+    title: 'Full list (ads, malware, fake news)',
+    subtitle: 'StevenBlack/hosts — general blocklist',
+    icon: FluentIcons.shield_20_regular,
+    isNsfw: false,
+    url: HostsFileUtils.stevenBlackHostsUrl,
+  ),
+  _HostsSource(
+    title: 'Full list + adult content',
+    subtitle: 'StevenBlack/hosts — "porn" variant',
+    icon: FluentIcons.shield_error_20_regular,
+    isNsfw: true,
+    url: HostsFileUtils.stevenBlackPornUrl,
+  ),
+  _HostsSource(
+    title: 'Adult content only',
+    subtitle: 'StevenBlack/hosts — "porn-only" variant',
+    icon: FluentIcons.eye_off_20_regular,
+    isNsfw: true,
+    url: HostsFileUtils.stevenBlackPornOnlyUrl,
+  ),
+];
+
 /// A list tile which lets the user bulk-import blocked websites from a
-/// "hosts" formatted file, such as the popular unified hosts list from
+/// "hosts" formatted file, such as the popular unified hosts lists from
 /// https://github.com/StevenBlack/hosts
 ///
-/// The user can either:
-///  1. Fetch the latest StevenBlack/hosts list directly from GitHub, or
-///  2. Select a hosts file already downloaded/saved on their device.
+/// The user can choose between the general list, the adult-content
+/// ("porn") variants, or a hosts file already saved on their device.
+/// Any hosts imported from an adult-content source are routed into the
+/// NSFW list, which the rest of the app treats as permanently locked
+/// (non-removable) and automatically blocked.
 class ImportHostsFileTile extends ConsumerStatefulWidget {
   const ImportHostsFileTile({super.key});
 
@@ -66,20 +115,21 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            DefaultListTile(
-              leadingIcon: FluentIcons.globe_20_regular,
-              titleText: 'Download StevenBlack/hosts',
-              subtitleText:
-                  'Fetch the latest unified hosts list from GitHub',
-              onPressed: () {
-                Navigator.of(sheetContext).pop();
-                _importFromGithub(context);
-              },
-            ),
+            for (final source in _remoteSources)
+              DefaultListTile(
+                leadingIcon: source.icon,
+                titleText: source.title,
+                subtitleText: source.subtitle,
+                onPressed: () {
+                  Navigator.of(sheetContext).pop();
+                  _importFromUrl(context, source);
+                },
+              ),
             DefaultListTile(
               leadingIcon: FluentIcons.document_search_20_regular,
-              titleText: 'Select a hosts file',
-              subtitleText: 'Choose a hosts file already on this device',
+              titleText: 'Select a hosts file from device',
+              subtitleText:
+                  'Choose a .txt or hosts file already saved on this device',
               onPressed: () {
                 Navigator.of(sheetContext).pop();
                 _importFromLocalFile(context);
@@ -92,19 +142,23 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     );
   }
 
-  Future<void> _importFromGithub(BuildContext context) async {
+  Future<void> _importFromUrl(
+    BuildContext context,
+    _HostsSource source,
+  ) async {
     setState(() => _isImporting = true);
     try {
       final response = await http
-          .get(Uri.parse(HostsFileUtils.stevenBlackHostsUrl))
+          .get(Uri.parse(source.url!))
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode != 200) {
-        throw Exception('Failed to download hosts file '
-            '(status ${response.statusCode})');
+        throw Exception(
+          'Failed to download hosts file (status ${response.statusCode})',
+        );
       }
 
-      _applyParsedHosts(context, response.body);
+      _applyParsedHosts(context, response.body, isNsfw: source.isNsfw);
     } catch (e) {
       if (mounted) {
         context.showSnackAlert('Could not download hosts file: $e');
@@ -116,6 +170,10 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
 
   Future<void> _importFromLocalFile(BuildContext context) async {
     try {
+      /// FileType.any keeps this working for hosts files saved with no
+      /// extension at all, or with .txt/.host/.hosts extensions - all of
+      /// which are plain text under the hood regardless of what the OS
+      /// reports as their MIME type.
       final result = await FilePicker.platform.pickFiles(
         type: FileType.any,
       );
@@ -125,10 +183,20 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
       final path = result.files.first.xFile.path;
       if (path.isEmpty) return;
 
+      final file = File(path);
+      if (!await file.exists()) {
+        throw Exception('Selected file could not be found');
+      }
+
       setState(() => _isImporting = true);
 
-      final content = await File(path).readAsString();
-      _applyParsedHosts(context, content);
+      final content = await file.readAsString();
+
+      if (!mounted) return;
+      final isNsfw = await _askIfAdultList(context);
+      if (isNsfw == null) return; // user dismissed the prompt
+
+      _applyParsedHosts(context, content, isNsfw: isNsfw);
     } catch (e) {
       if (mounted) {
         context.showSnackAlert('Could not read the selected file: $e');
@@ -138,23 +206,59 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     }
   }
 
-  void _applyParsedHosts(BuildContext context, String content) {
+  /// Asks the user whether the locally picked file is an adult-content
+  /// list, so it can be routed to the locked NSFW category. Returns
+  /// null if the user dismissed the dialog without choosing.
+  Future<bool?> _askIfAdultList(BuildContext context) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('What kind of list is this?'),
+        content: const Text(
+          'If this file contains adult/NSFW website domains, it will be '
+          'added to the locked NSFW category and cannot be edited later. '
+          'Otherwise it will be added to your regular blocked list.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Regular blocklist'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Adult / NSFW list'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _applyParsedHosts(
+    BuildContext context,
+    String content, {
+    required bool isNsfw,
+  }) {
     final domains = HostsFileUtils.parseHostsContent(content);
 
     if (domains.isEmpty) {
       if (mounted) {
-        context.showSnackAlert('No valid host entries were found in the file');
+        context.showSnackAlert(
+          'No valid host entries were found in the file',
+        );
       }
       return;
     }
 
-    final addedCount =
-        ref.read(wellBeingProvider.notifier).importBlockedSites(domains);
+    final notifier = ref.read(wellBeingProvider.notifier);
+    final addedCount = isNsfw
+        ? notifier.importNsfwSites(domains)
+        : notifier.importBlockedSites(domains);
 
     if (mounted) {
       context.showSnackAlert(
         addedCount > 0
             ? 'Blocked $addedCount new website${addedCount == 1 ? '' : 's'} '
+                '${isNsfw ? '(locked NSFW category) ' : ''}'
                 'from the imported hosts file'
             : 'All websites from the file are already blocked',
       );

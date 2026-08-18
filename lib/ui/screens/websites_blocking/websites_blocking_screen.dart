@@ -26,6 +26,7 @@ import 'package:mindful/ui/permissions/accessibility_permission_card.dart';
 import 'package:mindful/ui/screens/websites_blocking/add_websites_fab.dart';
 import 'package:mindful/ui/screens/websites_blocking/import_hosts_tile.dart';
 import 'package:mindful/ui/screens/websites_blocking/sliver_blocked_websites_list.dart';
+import 'package:mindful/ui/screens/websites_blocking/websites_search_field.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
 class WebsitesBlockingScreen extends ConsumerWidget {
@@ -93,6 +94,9 @@ class WebsitesBlockingScreen extends ConsumerWidget {
             /// Import blocked websites from a hosts file (e.g. StevenBlack/hosts)
             if (haveAccessibilityPermission)
               const ImportHostsFileTile().sliver,
+
+            /// Search field to filter blocked/nsfw websites list
+            const WebsitesSearchField().sliver,
 
             /// Distracting websites list
             const SliverBlockedWebsitesList(),

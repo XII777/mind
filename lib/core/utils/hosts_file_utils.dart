@@ -15,9 +15,20 @@
 class HostsFileUtils {
   HostsFileUtils._();
 
-  /// Default raw URL of the StevenBlack/hosts unified hosts file.
+  /// Default raw URL of the StevenBlack/hosts unified hosts file
+  /// (ads + malware + fakenews, no adult content).
   static const String stevenBlackHostsUrl =
       'https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts';
+
+  /// Raw URL of the StevenBlack/hosts "porn" variant — adult content
+  /// combined with the base ads/malware/fakenews lists.
+  static const String stevenBlackPornUrl =
+      'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts';
+
+  /// Raw URL of the StevenBlack/hosts "porn-only" variant — adult
+  /// content domains only, without the base ads/malware lists.
+  static const String stevenBlackPornOnlyUrl =
+      'https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts';
 
   /// Parses the raw content of a hosts file and returns the set of unique,
   /// valid domains found within it.

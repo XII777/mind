@@ -93,6 +93,32 @@ class WellBeingNotifier extends StateNotifier<Wellbeing> {
     return toAdd.length;
   }
 
+  /// Bulk-adds a set of website hosts (e.g. an adult-content hosts list
+  /// such as the StevenBlack/hosts "porn" or "porn-only" variant) to the
+  /// NSFW websites list, and switches on NSFW blocking automatically.
+  ///
+  /// Entries added to [Wellbeing.nsfwWebsites] are permanently locked
+  /// (non-removable) by the rest of the app, since [WebsiteTile] disables
+  /// removal for any host that is present in [Wellbeing.nsfwWebsites].
+  ///
+  /// Returns the number of newly added hosts.
+  int importNsfwSites(Iterable<String> websiteHosts) {
+    final existing = state.nsfwWebsites.toSet();
+    final toAdd = websiteHosts
+        .map((e) => e.trim().toLowerCase())
+        .where((e) => e.isNotEmpty && !existing.contains(e))
+        .toSet();
+
+    if (toAdd.isEmpty) return 0;
+
+    state = state.copyWith(
+      nsfwWebsites: [...state.nsfwWebsites, ...toAdd],
+      blockNsfwSites: true,
+    );
+
+    return toAdd.length;
+  }
+
   /// Sets the allowed time limit for short content consumption.
   void setAllowedShortContentTime(int timeSec) =>
       state = state.copyWith(allowedShortsTimeSec: timeSec > 0 ? timeSec : -1);
