@@ -108,11 +108,11 @@ class AdminPermissionTile extends ConsumerWidget {
     return DefaultHero(
       tag: HeroTags.tamperProtectionTileTag,
       child: DefaultListTile(
-        position: ItemPosition.mid,
         switchValue: haveAdminPermission && haveAccessibilityPermission,
         leadingIcon: FluentIcons.shield_keyhole_20_regular,
         titleText: context.locale.tamper_protection_tile_title,
         subtitleText: context.locale.tamper_protection_tile_subtitle,
+        position: ItemPosition.top,
         onPressed: () => _toggleTamperProtection(
           context,
           ref,

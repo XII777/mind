@@ -31,20 +31,9 @@ import java.util.concurrent.atomic.AtomicReference
 
 
 /**
- * A VPN service with two independent, mutually-exclusive modes:
- *
- * 1. **Internet Blocker** (default, unchanged from earlier versions):
- *    fully blocks internet access for a specific set of apps by routing
- *    only their traffic into a tunnel that never forwards anything.
- *
- * 2. **VPN website filter**: filters DNS (website) lookups system-wide
- *    against a domain blocklist, via [DnsFilterEngine]. See that class
- *    for the safety rationale behind why this only touches DNS traffic.
- *
- * Because Android only allows a single active [VpnService] tunnel at a
- * time, only one of these two modes can be active at once. If the DNS
- * website filter is enabled, it takes priority over the per-app
- * internet blocker while both are configured.
+ * A VPN service used to block internet access for specific apps by
+ * routing only their traffic into a tunnel that never forwards
+ * anything, which effectively cuts off their internet access.
  */
 class MindfulVpnService : VpnService() {
     companion object {
@@ -54,11 +43,8 @@ class MindfulVpnService : VpnService() {
     private val mBinder = ServiceBinder(this@MindfulVpnService)
     private val mAtomicVpnThread = AtomicReference<Thread?>(null)
     private var mBlockedApps: Set<String> = HashSet(0)
-    private var mBlockedDomains: Set<String> = HashSet(0)
-    private var mDnsFilterEnabled: Boolean = false
     private var mVpnInterface: ParcelFileDescriptor? = null
     private var mIsServiceRunning = false
-    private var mDnsFilterEngine: DnsFilterEngine? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 
@@ -101,13 +87,12 @@ class MindfulVpnService : VpnService() {
     }
 
     /**
-     * Establishes a VPN connection based on the active mode (DNS website
-     * filter takes priority if enabled, otherwise per-app internet
-     * blocking). If neither has anything configured, the service stops.
+     * Establishes a VPN connection, blocking internet access for the apps
+     * specified in blockedApps.
      */
     private fun connectVpn() {
-        if (!mDnsFilterEnabled && mBlockedApps.isEmpty()) {
-            Log.w(TAG, "connectVpn: Nothing to do (no blocked apps, DNS filter off), Exiting")
+        if (mBlockedApps.isEmpty()) {
+            Log.w(TAG, "connectVpn: No apps to block, exiting")
             stopAndDisposeService()
             return
         }
@@ -122,9 +107,6 @@ class MindfulVpnService : VpnService() {
      */
     private fun disconnectVpn() {
         try {
-            mDnsFilterEngine?.stop()
-            mDnsFilterEngine = null
-
             if (mVpnInterface != null) {
                 mVpnInterface!!.close()
                 mVpnInterface = null
@@ -145,110 +127,53 @@ class MindfulVpnService : VpnService() {
     }
 
     /**
-     * Returns a Runnable that configures and establishes the VPN connection
-     * for whichever mode is currently active.
+     * Returns a Runnable that configures and establishes the VPN connection,
+     * blocking traffic for the specified apps.
      */
     private val vpnThread: Runnable
         get() = Runnable {
-            if (mDnsFilterEnabled) {
-                connectDnsFilterVpn()
-            } else {
-                connectAppBlockerVpn()
-            }
-        }
+            try {
+                DatagramChannel.open().use { tunnel ->
+                    check(this@MindfulVpnService.protect(tunnel.socket())) { "Cannot protect the vpn socket tunnel" }
+                    val serverAddress: SocketAddress = InetSocketAddress("localhost", 0)
+                    tunnel.connect(serverAddress)
+                    tunnel.configureBlocking(false)
 
-    /**
-     * Mode 1: per-app internet blocker (original behavior, unchanged).
-     * Routes only the blocked apps' traffic into a tunnel that never
-     * forwards any packets, effectively cutting off their internet.
-     */
-    private fun connectAppBlockerVpn() {
-        try {
-            DatagramChannel.open().use { tunnel ->
-                check(this@MindfulVpnService.protect(tunnel.socket())) { "Cannot protect the vpn socket tunnel" }
-                val serverAddress: SocketAddress = InetSocketAddress("localhost", 0)
-                tunnel.connect(serverAddress)
-                tunnel.configureBlocking(false)
+                    val builder = this@MindfulVpnService.Builder()
+                    builder.addAddress("192.168.0.0", 24)
+                    builder.addRoute("0.0.0.0", 0)
 
-                val builder = this@MindfulVpnService.Builder()
-                builder.addAddress("192.168.0.0", 24)
-                builder.addRoute("0.0.0.0", 0)
-
-                // Add blocked app's packages
-                for (packageName in mBlockedApps) {
-                    try {
-                        builder.addAllowedApplication(packageName)
-                    } catch (e: PackageManager.NameNotFoundException) {
-                        Log.w(TAG, "connectAppBlockerVpn: Cannot find app with package $packageName")
+                    // Add blocked app's packages
+                    for (packageName in mBlockedApps) {
+                        try {
+                            builder.addAllowedApplication(packageName)
+                        } catch (e: PackageManager.NameNotFoundException) {
+                            Log.w(TAG, "vpnThread: Cannot find app with package $packageName")
+                        }
+                    }
+                    synchronized(this@MindfulVpnService) {
+                        mVpnInterface = builder.establish()
+                        Log.d(TAG, "vpnThread: VPN connected successfully")
                     }
                 }
-                synchronized(this@MindfulVpnService) {
-                    mVpnInterface = builder.establish()
-                    Log.d(TAG, "connectAppBlockerVpn: VPN connected successfully")
-                }
+            } catch (e: SocketException) {
+                Log.e(TAG, "vpnThread: Cannot use socket for VPN", e)
+                SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
+                stopAndDisposeService()
+            } catch (e: IOException) {
+                Log.e(TAG, "vpnThread: VPN connection failed, exiting", e)
+                SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
+                stopAndDisposeService()
+            } catch (e: IllegalArgumentException) {
+                Log.e(TAG, "vpnThread: VPN connection failed, exiting", e)
+                SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
+                stopAndDisposeService()
+            } catch (e: Exception) {
+                Log.e(TAG, "vpnThread: Something went wrong", e)
+                SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
+                stopAndDisposeService()
             }
-        } catch (e: SocketException) {
-            Log.e(TAG, "connectAppBlockerVpn: Cannot use socket for VPN", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        } catch (e: IOException) {
-            Log.e(TAG, "connectAppBlockerVpn: VPN connection failed, exiting", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "connectAppBlockerVpn: VPN connection failed, exiting", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        } catch (e: Exception) {
-            Log.e(TAG, "connectAppBlockerVpn: Something went wrong", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
         }
-    }
-
-    /**
-     * Mode 2: system-wide DNS website filter. Routes ONLY a single
-     * virtual DNS-server address through the tunnel (see
-     * [DnsFilterEngine.VIRTUAL_DNS_ADDRESS]) - all other traffic bypasses
-     * the VPN entirely. See [DnsFilterEngine] for full rationale.
-     */
-    private fun connectDnsFilterVpn() {
-        try {
-            val builder = this@MindfulVpnService.Builder()
-            builder.addAddress(DnsFilterEngine.VIRTUAL_DNS_ADDRESS, 32)
-            builder.addDnsServer(DnsFilterEngine.VIRTUAL_DNS_ADDRESS)
-            builder.addRoute(DnsFilterEngine.VIRTUAL_DNS_ADDRESS, 32)
-
-            synchronized(this@MindfulVpnService) {
-                val vpnInterface = builder.establish()
-                if (vpnInterface == null) {
-                    Log.e(TAG, "connectDnsFilterVpn: Failed to establish VPN interface")
-                    stopAndDisposeService()
-                    return
-                }
-
-                mVpnInterface = vpnInterface
-                val engine = DnsFilterEngine(this@MindfulVpnService)
-                engine.blockedDomains = mBlockedDomains
-                mDnsFilterEngine = engine
-                engine.start(vpnInterface)
-
-                Log.d(TAG, "connectDnsFilterVpn: DNS website filter VPN connected successfully")
-            }
-        } catch (e: IOException) {
-            Log.e(TAG, "connectDnsFilterVpn: VPN connection failed, exiting", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        } catch (e: IllegalArgumentException) {
-            Log.e(TAG, "connectDnsFilterVpn: VPN connection failed, exiting", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        } catch (e: Exception) {
-            Log.e(TAG, "connectDnsFilterVpn: Something went wrong", e)
-            SharedPrefsHelper.insertCrashLogToPrefs(this@MindfulVpnService, e)
-            stopAndDisposeService()
-        }
-    }
 
     /**
      * Sets the current VPN thread, interrupting the previous thread if necessary.
@@ -262,45 +187,12 @@ class MindfulVpnService : VpnService() {
 
     /**
      * Updates the list of blocked apps and restarts the VPN service if needed.
-     * Has no effect while the DNS website filter mode is active - the two
-     * modes are mutually exclusive since only one VPN tunnel can run at once.
      */
     fun updateBlockedApps(blockedApps: Set<String>) {
         mBlockedApps = blockedApps
         Log.d(TAG, "updateBlockedApps: Internet blocked apps updated successfully")
-        if (mDnsFilterEnabled) return
         if (mBlockedApps.isEmpty()) stopAndDisposeService()
         else reconnectVpn()
-    }
-
-    /**
-     * Enables or disables the system-wide DNS website filter and/or
-     * updates its domain blocklist. When enabling with a non-empty
-     * domain set, this takes over the VPN tunnel from the per-app
-     * internet blocker (if that was active). When disabling, control
-     * reverts to whatever the per-app blocker's current configuration is.
-     */
-    fun updateDnsWebsiteFilter(enabled: Boolean, blockedDomains: Set<String>) {
-        mBlockedDomains = blockedDomains
-        mDnsFilterEnabled = enabled && blockedDomains.isNotEmpty()
-
-        Log.d(TAG, "updateDnsWebsiteFilter: enabled=$mDnsFilterEnabled, domains=${blockedDomains.size}")
-
-        if (mDnsFilterEnabled) {
-            reconnectVpn()
-        } else {
-            /// Fall back to app-blocker mode (or stop entirely if that
-            /// has nothing configured either).
-            if (mBlockedApps.isEmpty()) {
-                stopAndDisposeService()
-            } else {
-                reconnectVpn()
-            }
-        }
-
-        /// If already running in DNS filter mode, push the updated
-        /// domain set to the live engine without a full reconnect.
-        mDnsFilterEngine?.blockedDomains = mBlockedDomains
     }
 
     override fun onDestroy() {

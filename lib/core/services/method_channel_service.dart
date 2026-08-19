@@ -200,21 +200,6 @@ class MethodChannelService {
         jsonEncode(blockedApps),
       );
 
-  /// Enables/disables the system-wide VPN DNS website filter and/or
-  /// updates its blocklist. When [enabled] is true and [domains] is
-  /// non-empty, this takes over the VPN tunnel from the per-app
-  /// "Internet Blocker" (the two are mutually exclusive - only one VPN
-  /// tunnel can be active at a time on Android). When disabled, control
-  /// reverts to whatever the per-app blocker is currently configured to.
-  Future<void> updateDnsWebsiteFilter({
-    required bool enabled,
-    required List<String> domains,
-  }) async =>
-      _methodChannel.invokeMethod('updateDnsWebsiteFilter', {
-        'enabled': enabled,
-        'domains': jsonEncode(domains),
-      });
-
   /// Safe method to update settings in Notification Listener service if provided.
   /// Also Updates the notification batching schedule if provided.
   ///

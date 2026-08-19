@@ -13,7 +13,6 @@ import 'dart:math';
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_confetti/flutter_confetti.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +27,7 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/hero_tags.dart';
 import 'package:mindful/providers/focus/focus_mode_provider.dart';
 import 'package:mindful/ui/common/default_fab_button.dart';
-import 'package:mindful/ui/screens/active_session/flip_clock_text.dart';
+import 'package:mindful/ui/common/flip_countdown_text.dart';
 import 'package:mindful/ui/common/scaffold_shell.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/dialogs/confirmation_dialog.dart';
@@ -51,7 +50,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   static const int _secondsInHour = 3600;
   bool _isCompleted = false;
   bool _isPoppingTriggered = false;
-  bool _isFullscreen = false;
 
   @override
   void initState() {
@@ -66,31 +64,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
       },
     );
   }
-
-  @override
-  void dispose() {
-    /// Always restore normal system UI when leaving this screen, even
-    /// if fullscreen was left on.
-    if (_isFullscreen) _setSystemUiFullscreen(false);
-    super.dispose();
-  }
-
-  void _setSystemUiFullscreen(bool enabled) {
-    if (enabled) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-    } else {
-      SystemChrome.setEnabledSystemUIMode(
-        SystemUiMode.edgeToEdge,
-        overlays: [SystemUiOverlay.top],
-      );
-    }
-  }
-
-  void _toggleFullscreen() {
-    setState(() => _isFullscreen = !_isFullscreen);
-    _setSystemUiFullscreen(_isFullscreen);
-  }
-
 
   /// This callback will be after a frame is rendered only when
   /// the active session provider is initialized and loaded successfully
@@ -183,17 +156,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
             icon: FluentIcons.brain_circuit_20_regular,
             filledIcon: FluentIcons.brain_circuit_20_filled,
             actions: [
-              /// Fullscreen toggle
-              IconButton.filledTonal(
-                icon: Icon(
-                  _isFullscreen
-                      ? FluentIcons.full_screen_minimize_20_filled
-                      : FluentIcons.full_screen_maximize_20_filled,
-                ),
-                onPressed: _toggleFullscreen,
-              ),
-              8.hBox,
-
               /// Goal or reflection
               _isCompleted || !activeSession.hasValue
                   ? 0.vBox
@@ -221,115 +183,51 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                         : FluentIcons.emoji_surprise_20_filled,
                     onPressed: () => _giveUpOrFinishActiveSession(isFinite),
                   ),
-            sliverBody: _buildBody(
-              context,
-              progress: progress,
-              totalDuration: totalDuration,
-              quoteIndex: quoteIndex,
-              quotes: quotes,
+            sliverBody: CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                24.vSliverBox,
+
+                /// Clock painter
+                TimerProgressClock(
+                  progress: progress.toDouble(),
+                ).sliver,
+                20.vSliverBox,
+
+                /// Countdown timer
+                FlipCountdownText(duration: totalDuration).sliver,
+                40.vSliverBox,
+
+                /// Motivation quote
+                SliverAnimatedPaintExtent(
+                  duration: AppConstants.defaultAnimDuration,
+                  child: Skeleton.leaf(
+                    child: StyledText(
+                      _isCompleted
+                          ? context.locale.active_session_quote_five(
+                              totalDuration.toTimeFull(
+                                context,
+                                replaceCommaWithAnd: true,
+                              ),
+                            )
+                          : quotes[max(quoteIndex, 0)],
+                      fontSize: 14,
+                      textAlign: TextAlign.center,
+                    ),
+                  ).centered.sliver,
+                ),
+
+                64.vSliverBox,
+
+                /// Waves
+                SineWave(
+                  sinColor: Theme.of(context).colorScheme.primaryContainer,
+                  cosColor: Theme.of(context).colorScheme.primary,
+                ).sliver,
+              ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Builds the session body, switching between a vertically-stacked
-  /// layout (portrait) and a side-by-side layout (landscape) so the
-  /// screen makes good use of space in both orientations, including
-  /// while fullscreen.
-  Widget _buildBody(
-    BuildContext context, {
-    required double progress,
-    required Duration totalDuration,
-    required int quoteIndex,
-    required List<String> quotes,
-  }) {
-    final isLandscape =
-        MediaQuery.orientationOf(context) == Orientation.landscape;
-
-    final quoteWidget = SliverAnimatedPaintExtent(
-      duration: AppConstants.defaultAnimDuration,
-      child: Skeleton.leaf(
-        child: StyledText(
-          _isCompleted
-              ? context.locale.active_session_quote_five(
-                  totalDuration.toTimeFull(
-                    context,
-                    replaceCommaWithAnd: true,
-                  ),
-                )
-              : quotes[max(quoteIndex, 0)],
-          fontSize: 14,
-          textAlign: TextAlign.center,
-        ),
-      ).centered.sliver,
-    );
-
-    if (!isLandscape) {
-      /// Portrait: original vertically-stacked scroll view
-      return CustomScrollView(
-        physics: const BouncingScrollPhysics(),
-        slivers: [
-          24.vSliverBox,
-          TimerProgressClock(progress: progress).sliver,
-          20.vSliverBox,
-          FlipClockText(duration: totalDuration).sliver,
-          40.vSliverBox,
-          quoteWidget,
-          64.vSliverBox,
-          SineWave(
-            sinColor: Theme.of(context).colorScheme.primaryContainer,
-            cosColor: Theme.of(context).colorScheme.primary,
-          ).sliver,
-        ],
-      );
-    }
-
-    /// Landscape: clock on the left, timer + quote on the right, side
-    /// by side, so the content isn't cramped vertically. Waves are
-    /// dropped in landscape to keep everything visible without
-    /// scrolling on shorter screens.
-    return SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TimerProgressClock(
-                progress: progress,
-                dimension: 150,
-              ),
-              24.hBox,
-              Flexible(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FlipClockText(duration: totalDuration, fontSize: 36),
-                    20.vBox,
-                    Skeleton.leaf(
-                      child: StyledText(
-                        _isCompleted
-                            ? context.locale.active_session_quote_five(
-                                totalDuration.toTimeFull(
-                                  context,
-                                  replaceCommaWithAnd: true,
-                                ),
-                              )
-                            : quotes[max(quoteIndex, 0)],
-                        fontSize: 13,
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

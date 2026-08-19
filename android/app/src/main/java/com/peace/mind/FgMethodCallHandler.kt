@@ -188,23 +188,6 @@ class FgMethodCallHandler(
                 result.success(true)
             }
 
-            "updateDnsWebsiteFilter" -> {
-                val args = call.arguments<Map<String, Any?>>() ?: emptyMap()
-                val enabled = args["enabled"] as? Boolean ?: false
-                val domainsJson = args["domains"] as? String ?: "[]"
-                val blockedDomains = JsonUtils.parseStringSet(domainsJson)
-
-                if (vpnServiceConn.isActive) {
-                    vpnServiceConn.service?.updateDnsWebsiteFilter(enabled, blockedDomains)
-                } else if (enabled && blockedDomains.isNotEmpty() && getAndAskVpnPermission(false)) {
-                    vpnServiceConn.setOnConnectedCallback { service ->
-                        service.updateDnsWebsiteFilter(enabled, blockedDomains)
-                    }
-                    vpnServiceConn.startAndBind()
-                }
-                result.success(true)
-            }
-
             "updateWellBeingSettings" -> {
                 // NOTE: Only updating shared prefs because accessibility service have onSharedPrefsChange listener registered which will eventually reload needed data
                 SharedPrefsHelper.getSetWellBeingSettings(
@@ -496,4 +479,14 @@ class FgMethodCallHandler(
         return intent == null
     }
 
-}
+}REVERT_EOF
+echo "  wrote android/app/src/main/java/com/peace/mind/FgMethodCallHandler.kt"
+echo ""
+echo "Deleting VPN filter files if present..."
+rm -f lib/ui/screens/websites_blocking/vpn_website_filter_tile.dart
+rm -f lib/providers/restrictions/vpn_website_filter_provider.dart
+rm -f android/app/src/main/java/com/peace/mind/services/vpn/DnsFilterEngine.kt
+echo "  deleted (if existed)"
+echo ""
+echo "Done. Git status:"
+git status --short

@@ -8,23 +8,20 @@
  *
  */
 
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mindful/core/enums/item_position.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
-import 'package:mindful/core/extensions/ext_widget.dart';
 import 'package:mindful/providers/system/permissions_provider.dart';
 import 'package:mindful/providers/system/tamper_lock_provider.dart';
-import 'package:mindful/ui/common/content_section_header.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
+import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/dialogs/tamper_lock_duration_dialog.dart';
-import 'package:sliver_tools/sliver_tools.dart';
 
-/// A dedicated section (its own header + tile) for configuring how many
-/// days tamper protection stays locked once enabled, and for showing
-/// the current lock status. Kept separate from the tamper protection
-/// enable/disable toggle so both are easy to find and uncluttered.
+/// The tamper-protection lock-duration tile, grouped directly beneath
+/// [AdminPermissionTile] as one connected card - same design language
+/// used elsewhere in the app (e.g. Invincible mode's toggle followed
+/// immediately by its time-window tile with a trailing value).
 class TamperLockDurationSection extends ConsumerStatefulWidget {
   const TamperLockDurationSection({super.key});
 
@@ -78,38 +75,22 @@ class _TamperLockDurationSectionState
     }
     _wasAdminEnabled = haveAdminPermission;
 
-    final statusSubtitle = !haveAdminPermission
-        ? 'Enable tamper protection above first for this to take effect.'
-        : tamperLock.lockDurationDays <= 0
-            ? 'No lock set — tamper protection can be disabled any time.'
-            : tamperLock.isLocked
-                ? 'Locked until ${tamperLock.lockEndsAt!.day}/'
-                    '${tamperLock.lockEndsAt!.month}/'
-                    '${tamperLock.lockEndsAt!.year}. Cannot be disabled '
-                    'until then.'
-                : 'Not currently locked. A new ${tamperLock.lockDurationDays}-day '
-                    'lock will start next time tamper protection is enabled.';
+    final subtitle = tamperLock.isLocked
+        ? 'Locked until ${tamperLock.lockEndsAt!.day}/'
+            '${tamperLock.lockEndsAt!.month}/${tamperLock.lockEndsAt!.year}'
+        : 'Days tamper protection stays locked once enabled';
 
-    return MultiSliver(
-      children: [
-        ContentSectionHeader(
-          title: 'Tamper protection lock',
-        ).sliver,
-        DefaultListTile(
-          position: ItemPosition.fit,
-          leadingIcon: tamperLock.isLocked
-              ? FluentIcons.lock_closed_20_filled
-              : FluentIcons.calendar_edit_20_regular,
-          titleText: 'Lock duration',
-          subtitleText: statusSubtitle,
-          trailing: Text(
-            '${tamperLock.lockDurationDays} day'
-            '${tamperLock.lockDurationDays == 1 ? '' : 's'}',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          onPressed: () => _editLockDuration(context),
-        ).sliver,
-      ],
+    return DefaultListTile(
+      position: ItemPosition.mid,
+      titleText: 'Tamper protection lock',
+      subtitleText: subtitle,
+      trailing: StyledText(
+        '${tamperLock.lockDurationDays} day'
+        '${tamperLock.lockDurationDays == 1 ? '' : 's'}',
+        fontSize: 14,
+        fontWeight: FontWeight.bold,
+      ),
+      onPressed: () => _editLockDuration(context),
     );
   }
 }

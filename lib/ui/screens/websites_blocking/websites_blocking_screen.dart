@@ -27,7 +27,6 @@ import 'package:mindful/ui/screens/websites_blocking/add_websites_fab.dart';
 import 'package:mindful/ui/screens/websites_blocking/import_hosts_tile.dart';
 import 'package:mindful/ui/screens/websites_blocking/sliver_blocked_websites_list.dart';
 import 'package:mindful/ui/screens/websites_blocking/sliver_imported_hosts_categories.dart';
-import 'package:mindful/ui/screens/websites_blocking/vpn_website_filter_tile.dart';
 import 'package:mindful/ui/screens/websites_blocking/websites_search_field.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
 
@@ -96,10 +95,6 @@ class WebsitesBlockingScreen extends ConsumerWidget {
             /// Import blocked websites from a hosts file (e.g. StevenBlack/hosts)
             if (haveAccessibilityPermission)
               const ImportHostsFileTile().sliver,
-
-            /// System-wide VPN DNS website filter toggle - does not
-            /// require accessibility permission, works independently
-            const VpnWebsiteFilterTile().sliver,
 
             /// Search field - searches manual sites plus domains inside
             /// any currently enabled imported category
