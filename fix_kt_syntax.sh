@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+set -e
+echo "Rewriting FgMethodCallHandler.kt with a clean, verified copy..."
+cat > "android/app/src/main/java/com/peace/mind/FgMethodCallHandler.kt" << 'FIXKT_EOF'
 package com.peace.mind
 
 import android.app.Activity
@@ -480,3 +484,11 @@ class FgMethodCallHandler(
     }
 
 }
+FIXKT_EOF
+echo "  wrote FgMethodCallHandler.kt"
+echo ""
+echo "Verifying: last 5 lines should be a single clean closing brace, nothing after it"
+tail -5 android/app/src/main/java/com/peace/mind/FgMethodCallHandler.kt
+echo ""
+echo "Done. Git status:"
+git status --short
