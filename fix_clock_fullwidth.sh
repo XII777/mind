@@ -1,3 +1,7 @@
+#!/usr/bin/env bash
+set -e
+echo "Making flip clock fill the screen width like the reference..."
+cat > "lib/ui/screens/active_session/active_session_screen.dart" << 'BIGCLOCK_EOF'
 /*
  *
  *  * Copyright (c) 2024 Mindful (https://github.com/akaMrNagar/Mindful)
@@ -383,3 +387,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
   }
 }
 
+BIGCLOCK_EOF
+echo "  wrote active_session_screen.dart"
+echo ""
+echo "Done. Git status:"
+git status --short
