@@ -112,7 +112,7 @@ class ParentalControlsScreen extends ConsumerWidget {
 
               /// Tamper protection lock duration - grouped directly
               /// beneath the toggle above
-              const TamperLockDurationSection(),
+              const TamperLockDurationSection().sliver,
 
               /// Uninstall window
               DefaultHero(
@@ -162,3 +162,4 @@ class ParentalControlsScreen extends ConsumerWidget {
     );
   }
 }
+
