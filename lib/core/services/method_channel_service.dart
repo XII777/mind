@@ -263,6 +263,18 @@ class MethodChannelService {
         }),
       );
 
+  /// Launches native FocusModeActivity edge-to-edge full-screen.
+  Future<void> openNativeFocusMode({
+    required FocusSession session,
+  }) async =>
+      await _methodChannel.invokeMethod(
+        'openNativeFocusMode',
+        {
+          'startTimeMsEpoch': session.startDateTime.millisecondsSinceEpoch,
+          'durationSeconds': session.durationSecs,
+        },
+      );
+
   /// Giveup or Finish running focus session with success or failure.
   ///
   /// This method sends a request to the native side to stop already running focus session.

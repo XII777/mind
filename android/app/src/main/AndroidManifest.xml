@@ -103,6 +103,15 @@
 
         </activity>
 
+        <!-- Native Mobile Focus Mode Activity -->
+        <activity
+            android:name=".ui.focus.FocusModeActivity"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.AppCompat.NoActionBar" />
+
         <!-- _________________________________________________________________________________ -->
         <!-- ____________________________ WIDGET PROVIDERS ___________________________________ -->
         <!-- _________________________________________________________________________________ -->

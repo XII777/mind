@@ -241,6 +241,18 @@ class FgMethodCallHandler(
                 result.success(true)
             }
 
+            "openNativeFocusMode" -> {
+                val startTimeMsEpoch = call.argument<Long>("startTimeMsEpoch") ?: System.currentTimeMillis()
+                val durationSecs = call.argument<Int>("durationSeconds") ?: 0
+                val intent = Intent(context, com.peace.mind.ui.focus.FocusModeActivity::class.java).apply {
+                    putExtra(com.peace.mind.ui.focus.FocusModeActivity.EXTRA_START_TIME_EPOCH, startTimeMsEpoch)
+                    putExtra(com.peace.mind.ui.focus.FocusModeActivity.EXTRA_DURATION_SECS, durationSecs)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+                result.success(true)
+            }
+
             "giveUpOrFinishFocusSession" -> {
                 if (focusServiceConn.isActive) {
                     focusServiceConn.service?.giveUpOrStopFocusSession(call.arguments() ?: false)

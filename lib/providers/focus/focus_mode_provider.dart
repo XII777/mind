@@ -223,6 +223,7 @@ class FocusModeNotifier extends StateNotifier<FocusModeModel>
       elapsedTimeSec: 0,
     );
     _startSessionServiceAndTimer(session);
+    await MethodChannelService.instance.openNativeFocusMode(session: session);
   }
 
   /// Ends the active focus session, updating its status based on success or failure.

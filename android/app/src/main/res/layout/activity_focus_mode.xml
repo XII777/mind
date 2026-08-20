@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/rootFocusLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#0C0C0E"
+    android:padding="24dp">
+
+    <!-- Top Label -->
+    <TextView
+        android:id="@+id/tvFocusHeader"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="32dp"
+        android:letterSpacing="0.2"
+        android:text="FOCUS"
+        android:textColor="#80F0F0F5"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <!-- Center Mechanical 3D Flip Clock -->
+    <com.peace.mind.ui.focus.FlipClockView
+        android:id="@+id/flipClockView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerInParent="true" />
+
+    <!-- Bottom Session Label & Status -->
+    <LinearLayout
+        android:id="@+id/layoutBottomText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/flipClockView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="32dp"
+        android:gravity="center"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvFocusLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Deep Work"
+            android:textColor="#D0F0F0F5"
+            android:textSize="20sp"
+            android:textStyle="medium" />
+
+        <TextView
+            android:id="@+id/tvStatusText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="PAUSED"
+            android:textColor="#E57373"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- Minimal Overlay Controls (Tap to reveal, auto-fade after 3s) -->
+    <LinearLayout
+        android:id="@+id/layoutControls"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="48dp"
+        android:alpha="0.0"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:visibility="gone">
+
+        <Button
+            android:id="@+id/btnPauseResume"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:backgroundTint="#2C2C36"
+            android:paddingHorizontal="20dp"
+            android:text="Pause"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnRestart"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:backgroundTint="#2C2C36"
+            android:paddingHorizontal="20dp"
+            android:text="Restart"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnExit"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="#3E2723"
+            android:paddingHorizontal="20dp"
+            android:text="Exit"
+            android:textColor="#FF8A80" />
+    </LinearLayout>
+
+</RelativeLayout>
