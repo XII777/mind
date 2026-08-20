@@ -72,6 +72,10 @@ class MindfulSettingsNotifier extends StateNotifier<MindfulSettings> {
   void switchDynamicColor() =>
       state = state.copyWith(useDynamicColors: !state.useDynamicColors);
 
+  /// Switch Liquid Glass floating navigation bar effect
+  void switchLiquidGlass() =>
+      state = state.copyWith(useLiquidGlass: !state.useLiquidGlass);
+
   /// Changes app locale if it is supported.
   void changeLocale(String localeCode) async {
     if (AppLocalizations.supportedLocales.any(

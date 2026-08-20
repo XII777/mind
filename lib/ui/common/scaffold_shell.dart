@@ -15,6 +15,7 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/navigation/app_routes.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/core/extensions/ext_num.dart';
+import 'package:mindful/ui/common/floating_glass_nav_bar.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/controllers/tab_controller_provider.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -242,10 +243,8 @@ class _ScaffoldShellState extends State<ScaffoldShell>
         alignment: Alignment.bottomCenter,
         child: SingleChildScrollView(child: child),
       ),
-      child: NavigationBar(
+      child: FloatingGlassNavBar(
         selectedIndex: _selectedTabIndex,
-        animationDuration: AppConstants.defaultAnimDuration,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         onDestinationSelected: (index) => _tabController.animateTo(
           index,
           duration: AppConstants.defaultAnimDuration,
@@ -256,15 +255,10 @@ class _ScaffoldShellState extends State<ScaffoldShell>
           final trimmedTitle =
               title.length >= 14 ? "${title.substring(0, 9)}..." : title;
 
-          return NavigationDestination(
+          return FloatingGlassDestination(
             label: trimmedTitle,
             icon: Icon(e.icon),
-            selectedIcon: Icon(e.filledIcon).animate().scale(
-                  begin: const Offset(0.5, 0.5),
-                  end: const Offset(1.05, 1.05),
-                  curve: Curves.elasticOut,
-                  duration: 1.seconds,
-                ),
+            selectedIcon: Icon(e.filledIcon),
           );
         }).toList(),
       ),

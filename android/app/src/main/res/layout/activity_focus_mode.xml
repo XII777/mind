@@ -45,7 +45,7 @@
             android:text="Deep Work"
             android:textColor="#D0F0F0F5"
             android:textSize="20sp"
-            android:textStyle="medium" />
+            android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvStatusText"

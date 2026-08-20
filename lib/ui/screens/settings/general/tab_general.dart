@@ -111,14 +111,24 @@ class TabGeneral extends ConsumerWidget {
               ref.read(mindfulSettingsProvider.notifier).switchAmoledDark,
         ).sliver,
 
-        /// Amoled dark
+        /// Dynamic Colors
         DefaultListTile(
-          position: ItemPosition.bottom,
+          position: ItemPosition.mid,
           switchValue: mindfulSettings.useDynamicColors,
           titleText: context.locale.dynamic_colors_tile_title,
           subtitleText: context.locale.dynamic_colors_tile_subtitle,
           onPressed:
               ref.read(mindfulSettingsProvider.notifier).switchDynamicColor,
+        ).sliver,
+
+        /// Liquid Glass Navigation Bar
+        DefaultListTile(
+          position: ItemPosition.bottom,
+          switchValue: mindfulSettings.useLiquidGlass,
+          titleText: "Liquid Glass",
+          subtitleText: "Floating transparent glass effect for navigation bar",
+          onPressed:
+              ref.read(mindfulSettingsProvider.notifier).switchLiquidGlass,
         ).sliver,
 
         /// Default settings
