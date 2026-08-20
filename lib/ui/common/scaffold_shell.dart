@@ -15,7 +15,6 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/navigation/app_routes.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/core/extensions/ext_num.dart';
-import 'package:mindful/ui/common/floating_glass_nav_bar.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/controllers/tab_controller_provider.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -129,9 +128,13 @@ class _ScaffoldShellState extends State<ScaffoldShell>
                 /// Show/Hide bottom bar
                 if (currentOffset >= widget.appBarExpandedHeight &&
                     (currentOffset >= _wholeScreenScrollOffSet + 1)) {
-                  _isBottomNavVisible.value = false;
+                  if (_isBottomNavVisible.value) {
+                    _isBottomNavVisible.value = false;
+                  }
                 } else if (currentOffset <= _wholeScreenScrollOffSet - 1) {
-                  _isBottomNavVisible.value = true;
+                  if (!_isBottomNavVisible.value) {
+                    _isBottomNavVisible.value = true;
+                  }
                 }
 
                 /// Cache offset for whole screen
@@ -243,8 +246,10 @@ class _ScaffoldShellState extends State<ScaffoldShell>
         alignment: Alignment.bottomCenter,
         child: SingleChildScrollView(child: child),
       ),
-      child: FloatingGlassNavBar(
+      child: NavigationBar(
         selectedIndex: _selectedTabIndex,
+        animationDuration: AppConstants.defaultAnimDuration,
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
         onDestinationSelected: (index) => _tabController.animateTo(
           index,
           duration: AppConstants.defaultAnimDuration,
@@ -255,7 +260,7 @@ class _ScaffoldShellState extends State<ScaffoldShell>
           final trimmedTitle =
               title.length >= 14 ? "${title.substring(0, 9)}..." : title;
 
-          return FloatingGlassDestination(
+          return NavigationDestination(
             label: trimmedTitle,
             icon: Icon(e.icon),
             selectedIcon: Icon(e.filledIcon),
