@@ -21,7 +21,6 @@ import 'package:mindful/core/extensions/ext_widget.dart';
 import 'package:mindful/config/locales.dart';
 import 'package:mindful/core/services/method_channel_service.dart';
 import 'package:mindful/l10n/generated/app_localizations.dart';
-import 'package:mindful/providers/system/liquid_glass_provider.dart';
 import 'package:mindful/providers/system/mindful_settings_provider.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
 import 'package:mindful/ui/common/rounded_container.dart';
@@ -114,27 +113,12 @@ class TabGeneral extends ConsumerWidget {
 
         /// Dynamic Colors
         DefaultListTile(
-          position: ItemPosition.mid,
+          position: ItemPosition.bottom,
           switchValue: mindfulSettings.useDynamicColors,
           titleText: context.locale.dynamic_colors_tile_title,
           subtitleText: context.locale.dynamic_colors_tile_subtitle,
           onPressed:
               ref.read(mindfulSettingsProvider.notifier).switchDynamicColor,
-        ).sliver,
-
-        /// Liquid Glass Navigation Bar
-        Consumer(
-          builder: (context, ref, _) {
-            final isLiquid = ref.watch(liquidGlassSettingProvider);
-            return DefaultListTile(
-              position: ItemPosition.bottom,
-              switchValue: isLiquid,
-              titleText: "Liquid Glass",
-              subtitleText: "Floating transparent glass effect for navigation bar",
-              onPressed: () =>
-                  ref.read(liquidGlassSettingProvider.notifier).toggle(),
-            );
-          },
         ).sliver,
 
         /// Default settings

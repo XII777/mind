@@ -246,26 +246,49 @@ class _ScaffoldShellState extends State<ScaffoldShell>
         alignment: Alignment.bottomCenter,
         child: SingleChildScrollView(child: child),
       ),
-      child: NavigationBar(
-        selectedIndex: _selectedTabIndex,
-        animationDuration: AppConstants.defaultAnimDuration,
-        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-        onDestinationSelected: (index) => _tabController.animateTo(
-          index,
-          duration: AppConstants.defaultAnimDuration,
-          curve: AppConstants.defaultCurve,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          bottom: MediaQuery.of(context).padding.bottom + 12,
         ),
-        destinations: widget.items.map((e) {
-          final title = e.titleText!;
-          final trimmedTitle =
-              title.length >= 14 ? "${title.substring(0, 9)}..." : title;
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.12),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(32),
+            child: NavigationBar(
+              selectedIndex: _selectedTabIndex,
+              animationDuration: AppConstants.defaultAnimDuration,
+              backgroundColor:
+                  Theme.of(context).colorScheme.surfaceContainerHigh,
+              onDestinationSelected: (index) => _tabController.animateTo(
+                index,
+                duration: AppConstants.defaultAnimDuration,
+                curve: AppConstants.defaultCurve,
+              ),
+              destinations: widget.items.map((e) {
+                final title = e.titleText!;
+                final trimmedTitle =
+                    title.length >= 14 ? "${title.substring(0, 9)}..." : title;
 
-          return NavigationDestination(
-            label: trimmedTitle,
-            icon: Icon(e.icon),
-            selectedIcon: Icon(e.filledIcon),
-          );
-        }).toList(),
+                return NavigationDestination(
+                  label: trimmedTitle,
+                  icon: Icon(e.icon),
+                  selectedIcon: Icon(e.filledIcon),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
       ),
     );
   }
