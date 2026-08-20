@@ -9,7 +9,9 @@
  */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/providers/restrictions/websites_search_provider.dart';
 import 'package:mindful/ui/common/search_bar.dart';
 
@@ -28,6 +30,15 @@ class WebsitesSearchField extends ConsumerWidget {
             .read(websitesSearchQueryProvider.notifier)
             .state = query.trim().toLowerCase(),
       ),
-    );
+    ).animate().fadeIn(
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        ).slideY(
+          begin: -0.1,
+          end: 0,
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        );
   }
 }
+

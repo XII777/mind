@@ -14,8 +14,10 @@ import 'dart:io';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
+import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/core/utils/hosts_file_utils.dart';
 import 'package:mindful/providers/restrictions/imported_hosts_lists_provider.dart';
@@ -144,7 +146,12 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
             )
           : const Icon(FluentIcons.chevron_right_20_regular),
       onPressed: _isImporting ? null : () => _showSourcePicker(context),
-    );
+    ).animate().scale(
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        );
   }
 
   void _showSourcePicker(BuildContext context) {
@@ -422,3 +429,4 @@ class _ImportHostsFileTileState extends ConsumerState<ImportHostsFileTile> {
     }
   }
 }
+

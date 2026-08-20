@@ -9,7 +9,9 @@
  */
 
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/core/enums/item_position.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/providers/system/permissions_provider.dart';
@@ -91,6 +93,12 @@ class _TamperLockDurationSectionState
         fontWeight: FontWeight.bold,
       ),
       onPressed: () => _editLockDuration(context),
-    );
+    ).animate().scale(
+          begin: const Offset(0.95, 0.95),
+          end: const Offset(1, 1),
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        );
   }
 }
+

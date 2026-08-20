@@ -10,7 +10,9 @@
 
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/providers/restrictions/imported_hosts_lists_provider.dart';
 import 'package:mindful/providers/restrictions/websites_search_provider.dart';
 import 'package:mindful/ui/common/default_list_tile.dart';
@@ -86,7 +88,13 @@ class SliverImportedHostsCategories extends ConsumerWidget {
               : () => ref
                   .read(importedHostsListsProvider.notifier)
                   .toggleList(category.id),
-        ),
+        ).animate().scale(
+              begin: const Offset(0.94, 0.94),
+              end: const Offset(1, 1),
+              curve: Curves.easeOutBack,
+              duration: AppConstants.defaultAnimDuration,
+              delay: Duration(milliseconds: 30 * tiles.length),
+            ),
       );
     }
 
@@ -97,3 +105,4 @@ class SliverImportedHostsCategories extends ConsumerWidget {
     return SliverList(delegate: SliverChildListDelegate(tiles));
   }
 }
+

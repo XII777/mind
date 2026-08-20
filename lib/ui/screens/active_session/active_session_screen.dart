@@ -27,13 +27,11 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/hero_tags.dart';
 import 'package:mindful/providers/focus/focus_mode_provider.dart';
 import 'package:mindful/ui/common/default_fab_button.dart';
+import 'package:mindful/ui/common/flip_countdown_text.dart';
 import 'package:mindful/ui/common/scaffold_shell.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/dialogs/confirmation_dialog.dart';
 import 'package:mindful/ui/dialogs/input_field_dialog.dart';
-import 'package:mindful/providers/focus/flip_clock_theme_provider.dart';
-import 'package:mindful/ui/screens/active_session/flip_clock_text.dart';
-import 'package:mindful/ui/screens/active_session/flip_clock_theme_picker.dart';
 import 'package:mindful/ui/screens/active_session/sine_wave.dart';
 import 'package:mindful/ui/screens/active_session/timer_progress_clock.dart';
 import 'package:mindful/ui/transitions/default_hero.dart';
@@ -158,13 +156,6 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
             icon: FluentIcons.brain_circuit_20_regular,
             filledIcon: FluentIcons.brain_circuit_20_filled,
             actions: [
-              /// Timer theme picker
-              IconButton.filledTonal(
-                icon: const Icon(FluentIcons.color_20_filled),
-                onPressed: () => showFlipClockThemePicker(context),
-              ),
-              8.hBox,
-
               /// Goal or reflection
               _isCompleted || !activeSession.hasValue
                   ? 0.vBox
@@ -203,32 +194,8 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
                 ).sliver,
                 20.vSliverBox,
 
-                /// Countdown timer - sized to fill the available width
-                /// edge-to-edge, like a real desk flip clock
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final availableWidth = constraints.maxWidth;
-                    final hasHours = totalDuration.inHours > 0;
-
-                    /// Approximate total width consumed per 1px of
-                    /// fontSize by the FlipClockText row: each digit
-                    /// card is ~0.8x, plus inter-card spacing and the
-                    /// colon glyphs, empirically ~1.0x per digit slot.
-                    final digitSlots = hasHours ? 6 : 4;
-                    final widthPerFontSizeUnit = digitSlots * 1.0 + 0.6;
-
-                    final fontSize =
-                        (availableWidth / widthPerFontSizeUnit)
-                            .clamp(48.0, 160.0)
-                            .toDouble();
-
-                    return FlipClockText(
-                      duration: totalDuration,
-                      theme: ref.watch(flipClockThemeProvider),
-                      fontSize: fontSize,
-                    );
-                  },
-                ).sliver,
+                /// Countdown timer
+                FlipCountdownText(duration: totalDuration).sliver,
                 40.vSliverBox,
 
                 /// Motivation quote
