@@ -15,6 +15,7 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/navigation/app_routes.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
 import 'package:mindful/core/extensions/ext_num.dart';
+import 'package:mindful/ui/common/compact_floating_pill_nav_bar.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/controllers/tab_controller_provider.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -125,13 +126,20 @@ class _ScaffoldShellState extends State<ScaffoldShell>
                 final currentOffset = notification.metrics.pixels +
                     (notification.depth == 1 ? _appBarScrollOffSet.value : 0);
 
-                /// Show/Hide bottom bar
-                if (currentOffset >= widget.appBarExpandedHeight &&
-                    (currentOffset >= _wholeScreenScrollOffSet + 1)) {
+                /// Show/Hide bottom bar on meaningful accumulated scroll
+                final delta = currentOffset - _wholeScreenScrollOffSet;
+                if (currentOffset <= 0) {
+                  // Force visible at the top of content
+                  if (!_isBottomNavVisible.value) {
+                    _isBottomNavVisible.value = true;
+                  }
+                } else if (delta > 8 && currentOffset >= widget.appBarExpandedHeight) {
+                  // Meaningful downward scroll -> hide navigation pill
                   if (_isBottomNavVisible.value) {
                     _isBottomNavVisible.value = false;
                   }
-                } else if (currentOffset <= _wholeScreenScrollOffSet - 1) {
+                } else if (delta < -8) {
+                  // Meaningful upward scroll -> show navigation pill
                   if (!_isBottomNavVisible.value) {
                     _isBottomNavVisible.value = true;
                   }
@@ -239,56 +247,35 @@ class _ScaffoldShellState extends State<ScaffoldShell>
   Widget _bottomNavBar() {
     return ValueListenableBuilder<bool>(
       valueListenable: _isBottomNavVisible,
-      builder: (context, isVisible, child) => AnimatedContainer(
-        height: isVisible ? (80 + MediaQuery.of(context).padding.bottom) : 0,
-        duration: 300.ms,
-        curve: isVisible ? Curves.easeOut : Curves.easeOut.flipped,
-        alignment: Alignment.bottomCenter,
-        child: SingleChildScrollView(child: child),
+      builder: (context, isVisible, child) => AnimatedSlide(
+        offset: isVisible ? Offset.zero : const Offset(0, 1.2),
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: isVisible ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+          child: child,
+        ),
       ),
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          bottom: MediaQuery.of(context).padding.bottom + 12,
+      child: CompactFloatingPillNavBar(
+        selectedIndex: _selectedTabIndex,
+        onDestinationSelected: (index) => _tabController.animateTo(
+          index,
+          duration: AppConstants.defaultAnimDuration,
+          curve: AppConstants.defaultCurve,
         ),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(32),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.12),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(32),
-            child: NavigationBar(
-              selectedIndex: _selectedTabIndex,
-              animationDuration: AppConstants.defaultAnimDuration,
-              backgroundColor:
-                  Theme.of(context).colorScheme.surfaceContainerHigh,
-              onDestinationSelected: (index) => _tabController.animateTo(
-                index,
-                duration: AppConstants.defaultAnimDuration,
-                curve: AppConstants.defaultCurve,
-              ),
-              destinations: widget.items.map((e) {
-                final title = e.titleText!;
-                final trimmedTitle =
-                    title.length >= 14 ? "${title.substring(0, 9)}..." : title;
+        destinations: widget.items.map((e) {
+          final title = e.titleText!;
+          final trimmedTitle =
+              title.length >= 14 ? "${title.substring(0, 9)}..." : title;
 
-                return NavigationDestination(
-                  label: trimmedTitle,
-                  icon: Icon(e.icon),
-                  selectedIcon: Icon(e.filledIcon),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
+          return FloatingPillDestination(
+            label: trimmedTitle,
+            icon: Icon(e.icon),
+            selectedIcon: Icon(e.filledIcon),
+          );
+        }).toList(),
       ),
     );
   }
