@@ -27,7 +27,7 @@ import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/hero_tags.dart';
 import 'package:mindful/providers/focus/focus_mode_provider.dart';
 import 'package:mindful/ui/common/default_fab_button.dart';
-import 'package:mindful/ui/common/flip_countdown_text.dart';
+import 'package:mindful/ui/common/mechanical_flip_clock.dart';
 import 'package:mindful/ui/common/scaffold_shell.dart';
 import 'package:mindful/ui/common/styled_text.dart';
 import 'package:mindful/ui/dialogs/confirmation_dialog.dart';
@@ -188,14 +188,10 @@ class _ActiveSessionScreenState extends ConsumerState<ActiveSessionScreen> {
               slivers: [
                 24.vSliverBox,
 
-                /// Clock painter
-                TimerProgressClock(
-                  progress: progress.toDouble(),
+                /// Mechanical 3D Split-Flap Flip Clock
+                MechanicalFlipClock(
+                  duration: totalDuration,
                 ).sliver,
-                20.vSliverBox,
-
-                /// Countdown timer
-                FlipCountdownText(duration: totalDuration).sliver,
                 40.vSliverBox,
 
                 /// Motivation quote
