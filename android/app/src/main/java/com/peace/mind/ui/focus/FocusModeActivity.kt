@@ -56,7 +56,7 @@ class FocusModeActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate()
+        super.onCreate(savedInstanceState)
 
         // Handle uncaught exceptions
         Thread.setDefaultUncaughtExceptionHandler { _, exception ->
