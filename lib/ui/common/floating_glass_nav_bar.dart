@@ -1,17 +1,7 @@
-/*
- *
- *  * Copyright (c) 2024 Mindful (https://github.com/akaMrNagar/Mindful)
- *  * Author : Pawan Nagar (https://github.com/akaMrNagar)
- *  *
- *  * This source code is licensed under the GPL-2.0 license license found in the
- *  * LICENSE file in the root directory of this source tree.
- *
- */
-
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mindful/providers/system/mindful_settings_provider.dart';
+import 'package:mindful/providers/system/liquid_glass_provider.dart';
 
 /// Floating Glass Navigation Bar supporting default Frosted Glass and optional Liquid Glass material.
 class FloatingGlassNavBar extends ConsumerStatefulWidget {
@@ -48,9 +38,7 @@ class _FloatingGlassNavBarState extends ConsumerState<FloatingGlassNavBar> {
   @override
   Widget build(BuildContext context) {
     // Read user setting for Liquid Glass (Default: false -> Frosted Glass)
-    final useLiquidGlass = ref.watch(
-      mindfulSettingsProvider.select((v) => v.useLiquidGlass),
-    );
+    final useLiquidGlass = ref.watch(liquidGlassSettingProvider);
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -191,7 +179,7 @@ class _GlassBorderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    val rect = Rect.fromLTWH(0, 0, size.width, size.height);
+    final rect = Rect.fromLTWH(0, 0, size.width, size.height);
     final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(32));
 
     if (!isLiquid) {

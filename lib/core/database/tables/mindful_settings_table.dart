@@ -45,10 +45,6 @@ class MindfulSettingsTable extends Table {
   BoolColumn get useDynamicColors =>
       boolean().withDefault(const Constant(false))();
 
-  /// Flag indicating if to enable Liquid Glass floating navigation bar effect
-  BoolColumn get useLiquidGlass =>
-      boolean().withDefault(const Constant(false))();
-
   /// Default initial home tab
   IntColumn get defaultHomeTab => intEnum<DefaultHomeTab>()
       .withDefault(Constant(DefaultHomeTab.dashboard.index))();
