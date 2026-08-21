@@ -36,31 +36,28 @@ class DriftDbService {
   /// to set up the database.
   Future<void> init() async => driftDb = await _createIsolatedDb();
 
-  /// Creates two separate executors for read and write operations
+  /// Creates a single safe executor for both read and write operations.
+  /// Using MultiExecutor with two separate NativeDatabase connections on the
+  /// same file caused a race condition where the background executor could
+  /// call onCreate (recreating all tables) independently of the foreground
+  /// executor, wiping existing data. A single connection is safer and correct
+  /// for this app's usage pattern.
   Future<AppDatabase> _createIsolatedDb() async {
     final db = LazyDatabase(
       () async {
         final dbFile = File(await getSqliteDbPath());
 
-        /// Set cache directory
+        /// Set cache directory for sqlite3 temp files
         final cacheBase = (await getTemporaryDirectory()).path;
         sqlite3.tempDirectory = cacheBase;
 
-        QueryExecutor foregroundReadExecutor = NativeDatabase(
+        /// Single executor — WAL journal mode allows concurrent reads without
+        /// a separate read connection, and eliminates the onCreate race
+        /// condition that caused data loss when two executors opened the same
+        /// DB file simultaneously on app update.
+        return NativeDatabase(
           dbFile,
-          // logStatements: kDebugMode,
           setup: _setup,
-        );
-
-        QueryExecutor backgroundWriteExecutor =
-            NativeDatabase.createInBackground(
-          dbFile,
-          // logStatements: kDebugMode,
-          setup: _setup,
-        );
-        return MultiExecutor(
-          read: foregroundReadExecutor,
-          write: backgroundWriteExecutor,
         );
       },
     );
@@ -73,8 +70,11 @@ class DriftDbService {
     /// Retry until 5 seconds then throw db lock error
     db.execute('PRAGMA busy_timeout = 5000;');
 
-    /// Enable WAL mode to allow multiple reader/writers (1000 pages = 4MB)
-    // db.execute('PRAGMA journal_mode = WAL;');
-    // db.execute('PRAGMA wal_autocheckpoint = 1000;');
+    /// Enable WAL mode: allows multiple concurrent readers alongside a
+    /// single writer, giving good read performance without needing a
+    /// separate read executor (which caused the onCreate race condition).
+    db.execute('PRAGMA journal_mode = WAL;');
+    db.execute('PRAGMA wal_autocheckpoint = 1000;');
   }
 }
+
