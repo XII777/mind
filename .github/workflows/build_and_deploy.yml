@@ -24,6 +24,12 @@ jobs:
         uses: subosito/flutter-action@v2
       - run: flutter --version
 
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25b
+          link-to-sdk: true
+
       - name: Reconstruct Keystore File
         run: |
           echo ${{ secrets.KEYSTORE_BASE64 }} | base64 --decode > $HOME/keystore.jks
