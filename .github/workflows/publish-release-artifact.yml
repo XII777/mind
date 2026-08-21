@@ -2,7 +2,6 @@ name: Build and publish release artifact
 
 on:
   push:
-    # Trigger on annotated tags like v1.2.3
     tags:
       - 'v*'
   workflow_dispatch:
@@ -14,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for changelog generation
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -51,7 +52,6 @@ jobs:
 
       - name: Build Android App Bundle (release)
         env:
-          # Ensure flutter uses the signing env vars if present
           KEYSTORE_FILE: ${{ env.KEYSTORE_FILE }}
           STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
           KEY_ALIAS: ${{ env.KEY_ALIAS }}
@@ -62,17 +62,124 @@ jobs:
           flutter pub get
           flutter build appbundle --release
 
+      - name: Generate release notes
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          # Find the previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 "$TAG"^ 2>/dev/null || git rev-list --max-parents=0 HEAD)
+
+          echo "Generating changelog from $PREV_TAG → $TAG"
+
+          # Parse commits into categories using conventional commit prefixes
+          generate_section() {
+            local prefix="$1"
+            local title="$2"
+            local emoji="$3"
+            local commits
+            commits=$(git log "$PREV_TAG".."$TAG" --pretty=format:"- %s (%h)" --no-merges \
+              | grep -iE "^- ($prefix)" | sed -E "s/^- ($prefix)(\([^)]+\))?[: ]+/- /I" || true)
+            if [ -n "$commits" ]; then
+              echo ""
+              echo "$emoji $title"
+              echo ""
+              echo "$commits"
+            fi
+          }
+
+          # Collect all categorized commits to exclude from "Other"
+          FEAT=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(feat|feature)" || true)
+          FIX=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(fix|bug)" || true)
+          PERF=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(perf|performance)" || true)
+          UI=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(ui|design|style)" || true)
+          REFACTOR=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(refactor|chore|build|ci|deps)" || true)
+          DOCS=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^(docs|doc)" || true)
+          REVERT=$(git log "$PREV_TAG".."$TAG" --pretty=format:"%s" --no-merges | grep -iE "^revert" || true)
+          TOTAL=$(git rev-list --count "$PREV_TAG".."$TAG" 2>/dev/null || echo "0")
+
+          # Build the body
+          BODY=$(cat <<NOTES
+          <div align="center">
+
+          ![Mindful](https://raw.githubusercontent.com/${{ github.repository }}/HEAD/assets/readme/header_banner.png)
+
+          </div>
+
+          ---
+
+          ## 📦 What's in $TAG
+
+          > Released on $(date +'%B %d, %Y') · $TOTAL commits since $PREV_TAG
+
+          NOTES
+          )
+
+          FEAT_SECTION=$(generate_section "feat|feature" "New Features" "🚀")
+          FIX_SECTION=$(generate_section "fix|bugfix|bug" "Bug Fixes" "🐛")
+          PERF_SECTION=$(generate_section "perf|performance" "Performance" "⚡")
+          UI_SECTION=$(generate_section "ui|design|style" "UI & Design" "🎨")
+          REFACTOR_SECTION=$(generate_section "refactor|chore|build|ci|deps" "Maintenance" "🔧")
+          DOCS_SECTION=$(generate_section "docs|doc" "Documentation" "📝")
+          REVERT_SECTION=$(generate_section "revert" "Reverts" "↩️")
+
+          # Other/uncategorized
+          OTHER=$(git log "$PREV_TAG".."$TAG" --pretty=format:"- %s (%h)" --no-merges \
+            | grep -ivE "^- (feat|feature|fix|bugfix|bug|perf|performance|ui|design|style|refactor|chore|build|ci|deps|docs|doc|revert)" || true)
+
+          FULL_BODY="$BODY"
+
+          [ -n "$FEAT_SECTION" ] && FULL_BODY+="$FEAT_SECTION"$'\n'
+          [ -n "$FIX_SECTION" ] && FULL_BODY+="$FIX_SECTION"$'\n'
+          [ -n "$PERF_SECTION" ] && FULL_BODY+="$PERF_SECTION"$'\n'
+          [ -n "$UI_SECTION" ] && FULL_BODY+="$UI_SECTION"$'\n'
+          [ -n "$REFACTOR_SECTION" ] && FULL_BODY+="$REFACTOR_SECTION"$'\n'
+          [ -n "$DOCS_SECTION" ] && FULL_BODY+="$DOCS_SECTION"$'\n'
+          [ -n "$REVERT_SECTION" ] && FULL_BODY+="$REVERT_SECTION"$'\n'
+
+          if [ -n "$OTHER" ]; then
+            FULL_BODY+=$'\n'"🔀 **Other Changes**"$'\n\n'"$OTHER"$'\n'
+          fi
+
+          # Contributors — only real committers in this tag range, resolved to GitHub usernames
+          CONTRIBUTOR_LIST=""
+          while IFS='|' read -r name email; do
+            GH_USER=$(gh api "search/users?q=$email+in:email" --jq '.items[0].login' 2>/dev/null || true)
+            if [ -n "$GH_USER" ] && [ "$GH_USER" != "null" ]; then
+              CONTRIBUTOR_LIST+="- [@$GH_USER](https://github.com/$GH_USER)"$'\n'
+            fi
+          done < <(git log "$PREV_TAG".."$TAG" --pretty=format:"%aN|%aE" --no-merges | sort -u)
+
+          if [ -n "$CONTRIBUTOR_LIST" ]; then
+            FULL_BODY+=$'\n---\n\n'
+            FULL_BODY+="## 🙏 Contributors"$'\n\n'
+            FULL_BODY+="Thanks to everyone who committed to this release:"$'\n\n'
+            FULL_BODY+="$CONTRIBUTOR_LIST"
+          fi
+
+          FULL_BODY+=$'\n---\n\n'
+          FULL_BODY+='**Full Changelog**: https://github.com/${{ github.repository }}/compare/'"$PREV_TAG"'...'"$TAG"$'\n\n'
+          FULL_BODY+='> 💡 **Note:** The AAB file below is for direct sideloading or Play Store upload. For regular users, install via the Play Store or use the `.apk` from a previous workflow.'
+
+          # Save to file (handles multiline safely)
+          echo "$FULL_BODY" > release_notes.md
+          echo "done=true" >> $GITHUB_OUTPUT
+
       - name: Create GitHub Release and upload AAB
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: build/app/outputs/bundle/release/app-release.aab
+          body_path: release_notes.md
+          generate_release_notes: false
+          make_latest: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-beta') || contains(github.ref, '-alpha') || contains(github.ref, '-rc') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload additional artifacts (mapping/symbols) if present
+      - name: Upload mapping/symbols if present
         run: |
           set -e
-          # Upload mapping.txt if present (use gh CLI)
           if [ -f build/app/outputs/mapping/release/mapping.txt ]; then
             echo "mapping.txt found; uploading to release..."
             gh release upload "${GITHUB_REF#refs/tags/}" build/app/outputs/mapping/release/mapping.txt --repo $GITHUB_REPOSITORY || true
