@@ -126,7 +126,7 @@ jobs:
 
             ---
 
-            ## <https://img.icons8.com/3d-fluency/94/brand-new.png" width="22" align="absmiddle"/> Changes in this build
+            ## <img src="https://img.icons8.com/3d-fluency/94/brand-new.png" width="22" align="absmiddle"/> Changes in this build
 
             ${{ steps.changelog.outputs.CHANGES }}
 
