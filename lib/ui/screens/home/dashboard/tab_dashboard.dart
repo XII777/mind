@@ -43,6 +43,8 @@ class TabDashboard extends ConsumerWidget {
     final isUsageLoading =
         ref.watch(todaysAppsUsageProvider.select((v) => v.isLoading));
 
+    final scheme = Theme.of(context).colorScheme;
+
     return DefaultRefreshIndicator(
       onRefresh: () async => ref
           .read(todaysAppsUsageProvider.notifier)
@@ -50,30 +52,29 @@ class TabDashboard extends ConsumerWidget {
       child: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
-          /// Active session
+          /// Active session alert (preserved exactly)
           const SliverActiveSessionAlert(),
 
           MultiSliver(
             children: [
               8.vBox,
+
+              // ── Stats Row ─────────────────────────────────
               Skeletonizer.zone(
                 enabled: isUsageLoading,
                 enableSwitchAnimation: true,
                 child: IntrinsicHeight(
                   child: Row(
                     children: [
-                      /// Screen time
                       const Expanded(child: ScreenTimeGlance()),
                       4.hBox,
-
-                      /// Data usage
                       const Expanded(child: FocusDailyGlance()),
                     ],
                   ),
                 ),
               ),
 
-              /// Usage glance
+              // ── Glance expandable ─────────────────────────
               DefaultExpandableListTile(
                 position: ItemPosition.mid,
                 titleText: context.locale.glance_tile_title,
@@ -85,23 +86,14 @@ class TabDashboard extends ConsumerWidget {
                 ),
               ),
 
-              /// Parental controls
-              DefaultListTile(
-                position: ItemPosition.bottom,
-                leadingIcon: FluentIcons.shield_keyhole_20_regular,
-                titleText: context.locale.parental_controls_tab_title,
-                subtitleText: context.locale.parental_controls_tile_subtitle,
-                color: Theme.of(context).colorScheme.secondaryContainer,
-                trailing: const Icon(FluentIcons.chevron_right_20_regular),
-                onPressed: () => Navigator.of(context)
-                    .pushNamed(AppRoutes.parentalControlsPath),
-              ),
+              // ── Parental Controls — accented card ─────────
+              _ParentalControlsCard(),
 
-              /// Restrictions
-              ..._restrictions(context),
+              // ── Restrictions section ──────────────────────
+              ..._restrictions(context, scheme),
 
-              /// Productivity
-              ..._productivity(context),
+              // ── Productivity section ──────────────────────
+              ..._productivity(context, scheme),
             ].animateListOnce(
               ref: ref,
               uniqueKey: "home.dashboard",
@@ -111,134 +103,304 @@ class TabDashboard extends ConsumerWidget {
             ),
           ),
 
-          /// Tips and tricks
           const SliverTipsAndTricks(),
-
           const SliverTabsBottomPadding(),
         ],
       ),
     );
   }
 
-  static List<Widget> _restrictions(BuildContext context) => [
-        /// Restrictions
-        ContentSectionHeader(
-          title: context.locale.restrictions_heading,
-        ),
+  // ─── RESTRICTIONS ────────────────────────────────────────────
+  static List<Widget> _restrictions(
+      BuildContext context, ColorScheme scheme) {
+    return [
+      _SectionHeader(title: context.locale.restrictions_heading),
 
-        /// Apps blocking
-        DefaultListTile(
-          position: ItemPosition.top,
-          leadingIcon: FluentIcons.app_title_20_regular,
-          titleText: context.locale.apps_blocking_tile_title,
-          subtitleText: context.locale.apps_blocking_tile_subtitle,
-          onPressed: () => TabControllerProvider.maybeOf(context)?.animateToTab(
-            DefaultHomeTab.statistics.index,
+      // All five restriction tiles grouped into one card
+      _RestrictTile(
+        position: ItemPosition.top,
+        icon: FluentIcons.app_title_20_regular,
+        iconBg: const Color(0xFF1C3A2E),
+        title: context.locale.apps_blocking_tile_title,
+        subtitle: context.locale.apps_blocking_tile_subtitle,
+        showChevron: false,
+        onTap: () => TabControllerProvider.maybeOf(context)
+            ?.animateToTab(DefaultHomeTab.statistics.index),
+      ),
+      _RestrictTile(
+        position: ItemPosition.mid,
+        icon: FluentIcons.app_recent_20_regular,
+        iconBg: const Color(0xFF1A2F3E),
+        title: context.locale.grouped_apps_blocking_tile_title,
+        subtitle: context.locale.grouped_apps_blocking_tile_subtitle,
+        onTap: () => Navigator.of(context)
+            .pushNamed(AppRoutes.restrictionGroupsPath),
+      ),
+      _RestrictTile(
+        position: ItemPosition.mid,
+        icon: FluentIcons.globe_prohibited_20_regular,
+        iconBg: const Color(0xFF2A1A3E),
+        title: 'Internet blocking',
+        subtitle: 'Block internet access for groups of apps.',
+        onTap: () => Navigator.of(context)
+            .pushNamed(AppRoutes.internetBlockingPath),
+      ),
+      _RestrictTile(
+        position: ItemPosition.mid,
+        icon: FluentIcons.resize_video_20_regular,
+        iconBg: const Color(0xFF3E1A2A),
+        title: context.locale.shorts_blocking_tab_title,
+        subtitle: context.locale.shorts_blocking_tile_subtitle,
+        onTap: () => Navigator.of(context)
+            .pushNamed(AppRoutes.shortsBlockingPath),
+      ),
+      _RestrictTile(
+        position: ItemPosition.bottom,
+        icon: FluentIcons.earth_20_regular,
+        iconBg: const Color(0xFF2E2A1A),
+        title: context.locale.websites_blocking_tab_title,
+        subtitle: context.locale.websites_blocking_tile_subtitle,
+        onTap: () => Navigator.of(context)
+            .pushNamed(AppRoutes.websitesBlockingPath),
+      ),
+    ];
+  }
+
+  // ─── PRODUCTIVITY ─────────────────────────────────────────────
+  static List<Widget> _productivity(
+      BuildContext context, ColorScheme scheme) {
+    return [
+      _SectionHeader(title: 'Productivity'),
+      _RestrictTile(
+        position: ItemPosition.top,
+        icon: FluentIcons.drink_coffee_20_regular,
+        iconBg: const Color(0xFF1C3A2E),
+        title: 'Habits',
+        subtitle: 'Build better habits and track them.',
+        onTap: () => context.showSnackAlert(
+          'Coming soon...',
+          icon: FluentIcons.info_20_filled,
+        ),
+      ),
+      _RestrictTile(
+        position: ItemPosition.mid,
+        icon: FluentIcons.reading_list_20_regular,
+        iconBg: const Color(0xFF1A2F3E),
+        title: 'Tasks and todos',
+        subtitle: 'Plan your future with tasks and todos.',
+        onTap: () => context.showSnackAlert(
+          'Coming soon...',
+          icon: FluentIcons.info_20_filled,
+        ),
+      ),
+      _RestrictTile(
+        position: ItemPosition.bottom,
+        icon: FluentIcons.note_20_regular,
+        iconBg: const Color(0xFF2A1A3E),
+        title: 'Notes and lists',
+        subtitle: 'Capture thoughts, checklists, or ideas.',
+        onTap: () => context.showSnackAlert(
+          'Coming soon...',
+          icon: FluentIcons.info_20_filled,
+        ),
+      ),
+    ];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PARENTAL CONTROLS CARD
+// ─────────────────────────────────────────────────────────────────
+
+class _ParentalControlsCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final green = scheme.primary;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(18),
+          bottomRight: Radius.circular(18),
+        ),
+        color: scheme.secondaryContainer,
+        border: Border.all(
+          color: green.withValues(alpha: 0.18),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: green.withValues(alpha: 0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
           ),
-        ),
-
-        /// Grouped apps blocking
-        DefaultListTile(
-          position: ItemPosition.mid,
-          leadingIcon: FluentIcons.app_recent_20_regular,
-          titleText: context.locale.grouped_apps_blocking_tile_title,
-          subtitleText: context.locale.grouped_apps_blocking_tile_subtitle,
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.restrictionGroupsPath),
-        ),
-
-        /// Internet blocking groups
-        DefaultListTile(
-          position: ItemPosition.mid,
-          leadingIcon: FluentIcons.globe_prohibited_20_regular,
-          titleText: 'Internet blocking',
-          subtitleText: 'Block internet access for groups of apps.',
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.internetBlockedAppsPath),
-        ).animate().scale(
-              begin: const Offset(0.95, 0.95),
-              end: const Offset(1, 1),
-              curve: Curves.easeOutBack,
-              duration: AppConstants.defaultAnimDuration,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(18),
+            bottomRight: Radius.circular(18),
+          ),
+          onTap: () => Navigator.of(context)
+              .pushNamed(AppRoutes.parentalControlsPath),
+          child: Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                // Icon in a glowing circle
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: green.withValues(alpha: 0.18),
+                  ),
+                  child: Icon(
+                    FluentIcons.shield_keyhole_20_filled,
+                    color: green,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        context.locale.parental_controls_tab_title,
+                        style: TextStyle(
+                          color: scheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        context.locale.parental_controls_tile_subtitle,
+                        style: TextStyle(
+                          color: scheme.onSecondaryContainer
+                              .withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: green.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: green.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Manage',
+                        style: TextStyle(
+                          color: green,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        FluentIcons.chevron_right_20_regular,
+                        color: green,
+                        size: 14,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-
-        /// Shorts restrictions
-        DefaultListTile(
-          position: ItemPosition.mid,
-          leadingIcon: FluentIcons.resize_video_20_regular,
-          titleText: context.locale.shorts_blocking_tab_title,
-          subtitleText: context.locale.shorts_blocking_tile_subtitle,
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.shortsBlockingPath),
-        ).animate().scale(
-              begin: const Offset(0.95, 0.95),
-              end: const Offset(1, 1),
-              curve: Curves.easeOutBack,
-              duration: AppConstants.defaultAnimDuration,
-            ),
-
-        /// Website restrictions
-        DefaultListTile(
-          position: ItemPosition.bottom,
-          leadingIcon: FluentIcons.earth_20_regular,
-          titleText: context.locale.websites_blocking_tab_title,
-          subtitleText: context.locale.websites_blocking_tile_subtitle,
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.websitesBlockingPath),
-        ).animate().scale(
-              begin: const Offset(0.95, 0.95),
-              end: const Offset(1, 1),
-              curve: Curves.easeOutBack,
-              duration: AppConstants.defaultAnimDuration,
-            ),
-      ];
-
-  static List<Widget> _productivity(BuildContext context) => [
-        /// Productivity
-        const ContentSectionHeader(title: "Productivity"),
-
-        /// Habits
-        DefaultListTile(
-          position: ItemPosition.top,
-          leadingIcon: FluentIcons.drink_coffee_20_regular,
-          titleText: "Habits",
-          subtitleText: "Build better habits and track them.",
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () => context.showSnackAlert(
-            "Coming soon...",
-            icon: FluentIcons.info_20_filled,
           ),
         ),
+      ),
+    ).animate().scale(
+          begin: const Offset(0.97, 0.97),
+          end: const Offset(1, 1),
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        );
+  }
+}
 
-        /// Tasks and todos
-        DefaultListTile(
-          position: ItemPosition.mid,
-          leadingIcon: FluentIcons.reading_list_20_regular,
-          titleText: "Tasks and todos",
-          subtitleText: "Plan your future with tasks and todos.",
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () => context.showSnackAlert(
-            "Coming soon...",
-            icon: FluentIcons.info_20_filled,
-          ),
-        ),
+// ─────────────────────────────────────────────────────────────────
+// SECTION HEADER  (matches existing ContentSectionHeader style but
+//                  with the green accent the reference uses)
+// ─────────────────────────────────────────────────────────────────
 
-        /// Notes & lists
-        DefaultListTile(
-          position: ItemPosition.bottom,
-          leadingIcon: FluentIcons.note_20_regular,
-          titleText: "Notes and lists",
-          subtitleText: "Capture thoughts, checklists, or ideas.",
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () => context.showSnackAlert(
-            "Coming soon...",
-            icon: FluentIcons.info_20_filled,
-          ),
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return ContentSectionHeader(title: title);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// RESTRICTION TILE  — icon in a coloured pill, chevron, animations
+// ─────────────────────────────────────────────────────────────────
+
+class _RestrictTile extends StatelessWidget {
+  const _RestrictTile({
+    required this.position,
+    required this.icon,
+    required this.iconBg,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.showChevron = true,
+  });
+
+  final ItemPosition position;
+  final IconData icon;
+  final Color iconBg;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool showChevron;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return DefaultListTile(
+      position: position,
+      leading: Container(
+        width: 38,
+        height: 38,
+        decoration: BoxDecoration(
+          color: iconBg,
+          borderRadius: BorderRadius.circular(10),
         ),
-      ];
+        child: Icon(icon, size: 18, color: scheme.primary),
+      ),
+      titleText: title,
+      subtitleText: subtitle,
+      trailing: showChevron
+          ? const Icon(FluentIcons.chevron_right_20_regular)
+          : null,
+      onPressed: onTap,
+    ).animate().scale(
+          begin: const Offset(0.96, 0.96),
+          end: const Offset(1, 1),
+          curve: Curves.easeOutBack,
+          duration: AppConstants.defaultAnimDuration,
+        );
+  }
 }
 
