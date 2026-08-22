@@ -92,7 +92,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version_name }}
-          name: "🧠 Peace Mind v${{ steps.version.outputs.version_name }}"
+          name: "🧠 Mind v${{ steps.version.outputs.version_name }}"
           prerelease: true
           generate_release_notes: false
           files: build/app/outputs/flutter-apk/*.apk
@@ -110,7 +110,7 @@ jobs:
 
             ---
 
-            ## <img src="https://img.icons8.com/3d-fluency/28/downloading-updates.png" width="22" align="absmiddle"/> Download & Install
+            ## <img src="https://img.icons8.com/3d-fluency/94/download-from-cloud.png" width="22" align="absmiddle"/> Download & Install
 
             Pick the APK for your device — click the filename to download directly:
 
@@ -120,13 +120,13 @@ jobs:
             | `app-armeabi-v7a-release.apk` | <img src="https://img.icons8.com/3d-fluency/20/smartphone.png" width="16" align="absmiddle"/> Older / 32-bit phones | [<img src="https://img.icons8.com/3d-fluency/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-armeabi-v7a-release.apk) |
             | `app-x86_64-release.apk` | <img src="https://img.icons8.com/3d-fluency/20/laptop.png" width="16" align="absmiddle"/> Emulators & x86 devices | [<img src="https://img.icons8.com/3d-fluency/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-x86_64-release.apk) |
 
-            <img src="https://img.icons8.com/3d-fluency/20/idea.png" width="16" align="absmiddle"/> **Updating?** Tap the APK → choose **Update** — do **not** uninstall first. Your data is preserved.
+            <img src="https://img.icons8.com/3d-fluency/94/high-priority.png" width="16" align="absmiddle"/> **Updating?** Tap the APK → choose **Update** — do **not** uninstall first. Your data is preserved.
 
             <img src="https://img.icons8.com/3d-fluency/20/error.png" width="16" align="absmiddle"/> **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable at **Settings → Accessibility → Peace Mind** after installing.
 
             ---
 
-            ## <img src="https://img.icons8.com/3d-fluency/28/new.png" width="22" align="absmiddle"/> Changes in this build
+            ## <https://img.icons8.com/3d-fluency/94/brand-new.png" width="22" align="absmiddle"/> Changes in this build
 
             ${{ steps.changelog.outputs.CHANGES }}
 
