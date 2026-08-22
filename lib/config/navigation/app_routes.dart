@@ -38,6 +38,7 @@ class AppRoutes {
 
   static const String parentalControlsPath = '/parentalControls';
   static const String restrictionGroupsPath = '/restrictionGroups';
+  static const String internetBlockingPath = '/internetBlocking';
   static const String shortsBlockingPath = '/shortsBlocking';
   static const String websitesBlockingPath = '/websitesBlocking';
 
@@ -73,6 +74,9 @@ class AppRoutes {
 
     /// Restriction groups screen
     restrictionGroupsPath: (context) => const RestrictionGroupsScreen(),
+
+    /// Internet blocking screen
+    internetBlockingPath: (context) => const InternetBlockedAppsScreen(),
 
     /// Shorts blocking screen
     shortsBlockingPath: (context) => const ShortsBlockingScreen(),
