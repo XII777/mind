@@ -147,6 +147,22 @@ class TabDashboard extends ConsumerWidget {
               Navigator.of(context).pushNamed(AppRoutes.restrictionGroupsPath),
         ),
 
+        /// Internet blocking groups
+        DefaultListTile(
+          position: ItemPosition.mid,
+          leadingIcon: FluentIcons.globe_prohibited_20_regular,
+          titleText: 'Internet blocking',
+          subtitleText: 'Block internet access for groups of apps.',
+          trailing: const Icon(FluentIcons.chevron_right_20_regular),
+          onPressed: () =>
+              Navigator.of(context).pushNamed(AppRoutes.internetBlockingPath),
+        ).animate().scale(
+              begin: const Offset(0.95, 0.95),
+              end: const Offset(1, 1),
+              curve: Curves.easeOutBack,
+              duration: AppConstants.defaultAnimDuration,
+            ),
+
         /// Shorts restrictions
         DefaultListTile(
           position: ItemPosition.mid,
@@ -156,18 +172,12 @@ class TabDashboard extends ConsumerWidget {
           trailing: const Icon(FluentIcons.chevron_right_20_regular),
           onPressed: () =>
               Navigator.of(context).pushNamed(AppRoutes.shortsBlockingPath),
-        ),
-
-        /// Internet blocked apps group
-        DefaultListTile(
-          position: ItemPosition.mid,
-          leadingIcon: FluentIcons.globe_prohibited_20_regular,
-          titleText: 'Internet blocked apps',
-          subtitleText: 'Block internet access for a group of apps.',
-          trailing: const Icon(FluentIcons.chevron_right_20_regular),
-          onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.internetBlockedAppsPath),
-        ),
+        ).animate().scale(
+              begin: const Offset(0.95, 0.95),
+              end: const Offset(1, 1),
+              curve: Curves.easeOutBack,
+              duration: AppConstants.defaultAnimDuration,
+            ),
 
         /// Website restrictions
         DefaultListTile(
@@ -178,7 +188,12 @@ class TabDashboard extends ConsumerWidget {
           trailing: const Icon(FluentIcons.chevron_right_20_regular),
           onPressed: () =>
               Navigator.of(context).pushNamed(AppRoutes.websitesBlockingPath),
-        ),
+        ).animate().scale(
+              begin: const Offset(0.95, 0.95),
+              end: const Offset(1, 1),
+              curve: Curves.easeOutBack,
+              duration: AppConstants.defaultAnimDuration,
+            ),
       ];
 
   static List<Widget> _productivity(BuildContext context) => [
@@ -225,3 +240,4 @@ class TabDashboard extends ConsumerWidget {
         ),
       ];
 }
+
