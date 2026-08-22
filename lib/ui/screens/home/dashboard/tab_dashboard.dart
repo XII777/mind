@@ -12,6 +12,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mindful/config/app_constants.dart';
 import 'package:mindful/config/navigation/app_routes.dart';
 import 'package:mindful/core/enums/default_home_tab.dart';
 import 'package:mindful/core/enums/item_position.dart';
@@ -155,7 +156,7 @@ class TabDashboard extends ConsumerWidget {
           subtitleText: 'Block internet access for groups of apps.',
           trailing: const Icon(FluentIcons.chevron_right_20_regular),
           onPressed: () =>
-              Navigator.of(context).pushNamed(AppRoutes.internetBlockingPath),
+              Navigator.of(context).pushNamed(AppRoutes.internetBlockedAppsPath),
         ).animate().scale(
               begin: const Offset(0.95, 0.95),
               end: const Offset(1, 1),
