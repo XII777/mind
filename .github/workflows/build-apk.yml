@@ -69,47 +69,66 @@ jobs:
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | grep '^v' | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            CHANGES="- Initial release"
+          else
+            CHANGES=$(git log "${PREV_TAG}..HEAD" --no-merges \
+              --pretty=format:"- %s" \
+              | grep -vE "^- (chore|docs|ci|style|test|build)(\(.*\))?:" \
+              | head -30)
+            [ -z "$CHANGES" ] && CHANGES="- Bug fixes and improvements"
+          fi
+          {
+            echo "CHANGES<<EOFDIFF"
+            echo "$CHANGES"
+            echo "EOFDIFF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version_name }}
           name: "🧠 Peace Mind v${{ steps.version.outputs.version_name }}"
           prerelease: true
-          generate_release_notes: true
+          generate_release_notes: false
           files: build/app/outputs/flutter-apk/*.apk
           body: |
             <div align="center">
 
-            # 🧠 Peace Mind
+            <img src="https://img.icons8.com/color/96/brain.png" width="64"/>
+
+            # Peace Mind
             ### v${{ steps.version.outputs.version_name }} · Pre-release Build
 
             *Built on ${{ steps.commit.outputs.date }} · Commit [`${{ steps.commit.outputs.sha }}`](https://github.com/XII777/mind/commit/${{ steps.commit.outputs.sha }})*
-
-            > A customised fork of [**Mindful**](https://github.com/akaMrNagar/Mindful) by [@akaMrNagar](https://github.com/akaMrNagar) — all original credit to the original author.
 
             </div>
 
             ---
 
-                        ## 📲 Download & Install
+            ## <img src="https://img.icons8.com/color/28/downloading-updates.png" width="22" align="absmiddle"/> Download & Install
 
             Pick the APK for your device — click the filename to download directly:
 
             | APK | Device | Download |
             |-----|--------|----------|
-            | `app-arm64-v8a-release.apk` | 🟢 Most modern Android phones **(recommended)** | [⬇️ Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-arm64-v8a-release.apk) |
-            | `app-armeabi-v7a-release.apk` | Older / 32-bit phones | [⬇️ Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-armeabi-v7a-release.apk) |
-            | `app-x86_64-release.apk` | Emulators & x86 devices | [⬇️ Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-x86_64-release.apk) |
+            | `app-arm64-v8a-release.apk` | <img src="https://img.icons8.com/color/20/checkmark.png" width="16" align="absmiddle"/> Most modern Android phones **(recommended)** | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-arm64-v8a-release.apk) |
+            | `app-armeabi-v7a-release.apk` | <img src="https://img.icons8.com/color/20/smartphone.png" width="16" align="absmiddle"/> Older / 32-bit phones | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-armeabi-v7a-release.apk) |
+            | `app-x86_64-release.apk` | <img src="https://img.icons8.com/color/20/laptop.png" width="16" align="absmiddle"/> Emulators & x86 devices | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-x86_64-release.apk) |
 
-            > 💡 **Updating?** Tap the APK and choose **Update** — do **not** uninstall first. Your data is preserved.
+            <img src="https://img.icons8.com/color/20/idea.png" width="16" align="absmiddle"/> **Updating?** Tap the APK → choose **Update** — do **not** uninstall first. Your data is preserved.
 
-            > ⚠️ **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable at **Settings → Accessibility → Peace Mind** after installing.
+            <img src="https://img.icons8.com/color/20/error.png" width="16" align="absmiddle"/> **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable at **Settings → Accessibility → Peace Mind** after installing.
+
             ---
 
-            ## 🆕 Changes in this build
+            ## <img src="https://img.icons8.com/color/28/new.png" width="22" align="absmiddle"/> Changes in this build
 
-            > *The section below is automatically generated from commit messages.*
+            ${{ steps.changelog.outputs.CHANGES }}
 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
