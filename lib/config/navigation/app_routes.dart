@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:mindful/core/enums/usage_type.dart';
 import 'package:mindful/core/extensions/ext_build_context.dart';
+import 'package:mindful/ui/screens/internet_blocked_apps/internet_blocked_apps_screen.dart';
 import 'package:mindful/ui/onboarding/onboarding_screen.dart';
 import 'package:mindful/ui/screens/active_session/active_session_screen.dart';
 import 'package:mindful/ui/screens/app_dashboard/app_dashboard_screen.dart';
@@ -42,6 +43,7 @@ class AppRoutes {
 
   static const String appDashboardPath = '/appDashboard';
   static const String notificationsPath = '/notifications';
+  static const String internetBlockedAppsPath = '/internetBlockedApps';
 
   static final Map<String, Widget Function(BuildContext)> routes = {
     /// Root
@@ -98,5 +100,8 @@ class AppRoutes {
               UsageType.values[(context.resolveParam<int>("usageType") ?? 0) % 2],
           selectedDay: context.resolveParam<DateTime>("day"),
         ),
+
+    /// Internet blocked apps group screen
+    internetBlockedAppsPath: (context) => const InternetBlockedAppsScreen(),
   };
 }

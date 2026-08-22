@@ -158,6 +158,17 @@ class TabDashboard extends ConsumerWidget {
               Navigator.of(context).pushNamed(AppRoutes.shortsBlockingPath),
         ),
 
+        /// Internet blocked apps group
+        DefaultListTile(
+          position: ItemPosition.mid,
+          leadingIcon: FluentIcons.globe_prohibited_20_regular,
+          titleText: 'Internet blocked apps',
+          subtitleText: 'Block internet access for a group of apps.',
+          trailing: const Icon(FluentIcons.chevron_right_20_regular),
+          onPressed: () =>
+              Navigator.of(context).pushNamed(AppRoutes.internetBlockedAppsPath),
+        ),
+
         /// Website restrictions
         DefaultListTile(
           position: ItemPosition.bottom,

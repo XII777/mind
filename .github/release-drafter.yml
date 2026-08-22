@@ -1,0 +1,45 @@
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - bot
+  categories:
+    - title: "## 🚀 New Features"
+      labels:
+        - "feature"
+        - "enhancement"
+        - "feat"
+    - title: "## 🐛 Bug Fixes"
+      labels:
+        - "bug"
+        - "fix"
+        - "bugfix"
+    - title: "## ⚡ Performance"
+      labels:
+        - "performance"
+        - "perf"
+    - title: "## 🎨 UI & Design"
+      labels:
+        - "ui"
+        - "design"
+        - "style"
+    - title: "## 🔒 Security"
+      labels:
+        - "security"
+    - title: "## 🔧 Maintenance"
+      labels:
+        - "chore"
+        - "maintenance"
+        - "refactor"
+        - "deps"
+    - title: "## 📝 Documentation"
+      labels:
+        - "documentation"
+        - "docs"
+    - title: "## 🌍 Translations"
+      labels:
+        - "translation"
+        - "i18n"
+    - title: "## 🔀 Other Changes"
+      labels:
+        - "*"

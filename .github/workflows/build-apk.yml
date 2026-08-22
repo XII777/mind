@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -32,10 +34,13 @@ jobs:
         run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release-key.jks
 
       - name: Set version from build number
+        id: version
         run: |
           VERSION_CODE=${{ github.run_number }}
           VERSION_NAME="1.2.${VERSION_CODE}"
           sed -i "s/^version: .*/version: ${VERSION_NAME}+${VERSION_CODE}/" pubspec.yaml
+          echo "version_name=${VERSION_NAME}" >> $GITHUB_OUTPUT
+          echo "version_code=${VERSION_CODE}" >> $GITHUB_OUTPUT
           echo "Building version ${VERSION_NAME}+${VERSION_CODE}"
 
       - name: Install dependencies
@@ -49,19 +54,63 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: flutter build apk --release --split-per-abi
 
+      - name: Get commit info
+        id: commit
+        run: |
+          echo "message=$(git log -1 --pretty=%s)" >> $GITHUB_OUTPUT
+          echo "author=$(git log -1 --pretty=%an)" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "date=$(date +'%B %d, %Y')" >> $GITHUB_OUTPUT
+
       - name: Upload APK artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mindful-release-apks
+          name: peace-mind-v${{ steps.version.outputs.version_name }}-apks
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.${{ github.run_number }}
-          name: Peace Mind v1.2.${{ github.run_number }}
+          tag_name: v${{ steps.version.outputs.version_name }}
+          name: "🧠 Peace Mind v${{ steps.version.outputs.version_name }}"
+          prerelease: true
+          generate_release_notes: true
           files: build/app/outputs/flutter-apk/*.apk
+          body: |
+            <div align="center">
+
+            # 🧠 Peace Mind
+            ### v${{ steps.version.outputs.version_name }} · Pre-release Build
+
+            *Built on ${{ steps.commit.outputs.date }} · Commit [`${{ steps.commit.outputs.sha }}`](https://github.com/XII777/mind/commit/${{ steps.commit.outputs.sha }})*
+
+            > A customised fork of [**Mindful**](https://github.com/akaMrNagar/Mindful) by [@akaMrNagar](https://github.com/akaMrNagar) — all original credit to the original author.
+
+            </div>
+
+            ---
+
+            ## 📲 Download & Install
+
+            Pick the APK for your device:
+
+            | APK | For |
+            |-----|-----|
+            | 🟢 `app-arm64-v8a-release.apk` | **Most modern Android phones** (recommended) |
+            | `app-armeabi-v7a-release.apk` | Older / 32-bit phones |
+            | `app-x86_64-release.apk` | Emulators & x86 devices |
+
+            > 💡 **Updating?** Tap the APK and choose **Update** — do **not** uninstall first. Your data, settings, and blocked apps are preserved.
+
+            > ⚠️ **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable it at **Settings → Accessibility → Peace Mind** after installing.
+
+            ---
+
+            ## 🆕 Changes in this build
+
+            > *The section below is automatically generated from commit messages.*
+
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

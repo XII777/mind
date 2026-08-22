@@ -1,0 +1,35 @@
+# Automatic release note categories
+# GitHub reads commit messages and sorts them into these sections.
+# Write commits like: "feat: add internet blocking" or "fix: data wipe on update"
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+    authors:
+      - dependabot
+  categories:
+    - title: "✨ New Features"
+      labels:
+        - enhancement
+        - feature
+      exclude:
+        labels:
+          - bug
+    - title: "🐛 Bug Fixes"
+      labels:
+        - bug
+        - fix
+    - title: "🔒 Security"
+      labels:
+        - security
+    - title: "⚡ Performance"
+      labels:
+        - performance
+    - title: "🎨 UI & Design"
+      labels:
+        - ui
+        - design
+    - title: "🛠️ Other Changes"
+      labels:
+        - "*"
+
