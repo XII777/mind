@@ -99,7 +99,7 @@ jobs:
           body: |
             <div align="center">
 
-            <img src="https://img.icons8.com/color/96/brain.png" width="64"/>
+            <img src="https://img.icons8.com/3d-fluency/96/brain.png" width="64"/>
 
             # Peace Mind
             ### v${{ steps.version.outputs.version_name }} · Pre-release Build
@@ -110,23 +110,23 @@ jobs:
 
             ---
 
-            ## <img src="https://img.icons8.com/color/28/downloading-updates.png" width="22" align="absmiddle"/> Download & Install
+            ## <img src="https://img.icons8.com/3d-fluency/28/downloading-updates.png" width="22" align="absmiddle"/> Download & Install
 
             Pick the APK for your device — click the filename to download directly:
 
             | APK | Device | Download |
             |-----|--------|----------|
-            | `app-arm64-v8a-release.apk` | <img src="https://img.icons8.com/color/20/checkmark.png" width="16" align="absmiddle"/> Most modern Android phones **(recommended)** | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-arm64-v8a-release.apk) |
-            | `app-armeabi-v7a-release.apk` | <img src="https://img.icons8.com/color/20/smartphone.png" width="16" align="absmiddle"/> Older / 32-bit phones | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-armeabi-v7a-release.apk) |
-            | `app-x86_64-release.apk` | <img src="https://img.icons8.com/color/20/laptop.png" width="16" align="absmiddle"/> Emulators & x86 devices | [<img src="https://img.icons8.com/color/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-x86_64-release.apk) |
+            | `app-arm64-v8a-release.apk` | <img src="https://img.icons8.com/3d-fluency/20/checkmark.png" width="16" align="absmiddle"/> Most modern Android phones **(recommended)** | [<img src="https://img.icons8.com/3d-fluency/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-arm64-v8a-release.apk) |
+            | `app-armeabi-v7a-release.apk` | <img src="https://img.icons8.com/3d-fluency/20/smartphone.png" width="16" align="absmiddle"/> Older / 32-bit phones | [<img src="https://img.icons8.com/3d-fluency/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-armeabi-v7a-release.apk) |
+            | `app-x86_64-release.apk` | <img src="https://img.icons8.com/3d-fluency/20/laptop.png" width="16" align="absmiddle"/> Emulators & x86 devices | [<img src="https://img.icons8.com/3d-fluency/20/download.png" width="16" align="absmiddle"/> Download](https://github.com/XII777/mind/releases/download/v${{ steps.version.outputs.version_name }}/app-x86_64-release.apk) |
 
-            <img src="https://img.icons8.com/color/20/idea.png" width="16" align="absmiddle"/> **Updating?** Tap the APK → choose **Update** — do **not** uninstall first. Your data is preserved.
+            <img src="https://img.icons8.com/3d-fluency/20/idea.png" width="16" align="absmiddle"/> **Updating?** Tap the APK → choose **Update** — do **not** uninstall first. Your data is preserved.
 
-            <img src="https://img.icons8.com/color/20/error.png" width="16" align="absmiddle"/> **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable at **Settings → Accessibility → Peace Mind** after installing.
+            <img src="https://img.icons8.com/3d-fluency/20/error.png" width="16" align="absmiddle"/> **Accessibility permission** is revoked by Android after every update (Android 9+ security policy). Re-enable at **Settings → Accessibility → Peace Mind** after installing.
 
             ---
 
-            ## <img src="https://img.icons8.com/color/28/new.png" width="22" align="absmiddle"/> Changes in this build
+            ## <img src="https://img.icons8.com/3d-fluency/28/new.png" width="22" align="absmiddle"/> Changes in this build
 
             ${{ steps.changelog.outputs.CHANGES }}
 
